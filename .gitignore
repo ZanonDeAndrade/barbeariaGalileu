@@ -1,0 +1,13 @@
+node_modules
+.env
+.env.local
+.env.development
+.env.production
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+server/dist
+server/prisma/dev.db
+client/dist
+.DS_Store
