@@ -80,6 +80,14 @@ function BarberDashboard() {
     [haircuts],
   );
 
+  const dailyAppointments = useMemo(
+    () =>
+      appointments.filter(
+        (appointment) => format(parseISO(appointment.startTime), 'yyyy-MM-dd') === selectedDate,
+      ),
+    [appointments, selectedDate],
+  );
+
   const hasAvailableSlots = availability.some((slot) => slot.status === 'available');
 
   const handleBlockSlot = async () => {
@@ -210,15 +218,15 @@ function BarberDashboard() {
           <div>
             <div className="section-title">Agendamentos confirmados</div>
             <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-              Lista completa dos agendamentos futuros.
+              Visualize os agendamentos confirmados para o dia selecionado.
             </p>
           </div>
         </div>
 
         {loadingAppointments ? (
           <div className="status-banner" style={{ marginTop: '1rem' }}>Carregando agendamentos...</div>
-        ) : appointments.length === 0 ? (
-          <div className="status-banner" style={{ marginTop: '1rem' }}>Nenhum agendamento futuro encontrado.</div>
+        ) : dailyAppointments.length === 0 ? (
+          <div className="status-banner" style={{ marginTop: '1rem' }}>Nenhum agendamento encontrado para esta data.</div>
         ) : (
           <div className="table-responsive">
             <table className="table">
@@ -232,7 +240,7 @@ function BarberDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {appointments.map((appointment) => {
+                {dailyAppointments.map((appointment) => {
                   const dateObj = parseISO(appointment.startTime);
                   return (
                     <tr key={appointment.id}>
