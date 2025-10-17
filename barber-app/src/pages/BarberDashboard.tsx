@@ -220,31 +220,35 @@ function BarberDashboard() {
         ) : appointments.length === 0 ? (
           <div className="status-banner" style={{ marginTop: '1rem' }}>Nenhum agendamento futuro encontrado.</div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Horário</th>
-                <th>Cliente</th>
-                <th>Telefone</th>
-                <th>Serviço</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((appointment) => {
-                const dateObj = parseISO(appointment.startTime);
-                return (
-                  <tr key={appointment.id}>
-                    <td>{format(dateObj, "dd/MM/yyyy")}</td>
-                    <td>{format(dateObj, 'HH:mm')}</td>
-                    <td>{appointment.customerName}</td>
-                    <td>{appointment.customerPhone}</td>
-                    <td>{haircutMap[appointment.haircutType] ?? appointment.haircutType}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Horário</th>
+                  <th>Cliente</th>
+                  <th>Telefone</th>
+                  <th>Serviço</th>
+                </tr>
+              </thead>
+              <tbody>
+                {appointments.map((appointment) => {
+                  const dateObj = parseISO(appointment.startTime);
+                  return (
+                    <tr key={appointment.id}>
+                      <td data-label="Data">{format(dateObj, "dd/MM/yyyy")}</td>
+                      <td data-label="Horário">{format(dateObj, 'HH:mm')}</td>
+                      <td data-label="Cliente">{appointment.customerName}</td>
+                      <td data-label="Telefone">{appointment.customerPhone}</td>
+                      <td data-label="Serviço">
+                        {haircutMap[appointment.haircutType] ?? appointment.haircutType}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
@@ -263,33 +267,35 @@ function BarberDashboard() {
             Nenhum horário bloqueado para esta data.
           </div>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Horário</th>
-                <th>Motivo</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {blockedSlots.map((slot) => {
-                const slotDate = parseISO(slot.startTime);
-                return (
-                  <tr key={slot.id}>
-                    <td>{format(slotDate, 'HH:mm')}</td>
-                    <td>{slot.reason ?? 'Sem motivo cadastrado'}</td>
-                    <td>
-                      <div className="inline-actions">
-                        <button type="button" className="btn btn-secondary" onClick={() => handleRemoveBlockedSlot(slot.id)}>
-                          Desbloquear
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="table-responsive">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Horário</th>
+                  <th>Motivo</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blockedSlots.map((slot) => {
+                  const slotDate = parseISO(slot.startTime);
+                  return (
+                    <tr key={slot.id}>
+                      <td data-label="Horário">{format(slotDate, 'HH:mm')}</td>
+                      <td data-label="Motivo">{slot.reason ?? 'Sem motivo cadastrado'}</td>
+                      <td data-label="Ações">
+                        <div className="inline-actions">
+                          <button type="button" className="btn btn-secondary" onClick={() => handleRemoveBlockedSlot(slot.id)}>
+                            Desbloquear
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
