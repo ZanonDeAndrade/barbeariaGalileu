@@ -31,14 +31,6 @@ export interface BlockedSlot {
   createdAt: string;
 }
 
-export interface CreateAppointmentPayload {
-  customerName: string;
-  customerPhone: string;
-  haircutType: string;
-  startTime: string;
-  notes?: string;
-}
-
 export interface CreateBlockedSlotPayload {
   startTime: string;
   reason?: string;

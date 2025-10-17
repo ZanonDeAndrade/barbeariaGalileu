@@ -4,7 +4,8 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
 
 ## Estrutura
 
-- `client/`: aplicação web para clientes e barbeiros.
+- `customer-app/`: aplicação web para clientes realizarem agendamentos.
+- `barber-app/`: painel separado para o barbeiro gerenciar agenda e bloqueios.
 - `server/`: API REST para gerenciamento dos agendamentos, horários e bloqueios.
 - `index.ts`: placeholder original (não utilizado).
 
@@ -19,9 +20,9 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
 
 ## Setup resumido
 
-1. Instalar dependências em `client/` e `server/` com `npm install`.
+1. Instalar dependências em `server/`, `customer-app/` e `barber-app/` com `npm install`.
 2. Em `server/`, configurar o arquivo `.env` (ver `.env.example`) e executar `npx prisma migrate dev`.
-3. Rodar `npm run dev` em ambos os diretórios (backend porta 4000, frontend porta 5173 por padrão).
+3. Rodar `npm run dev` em cada frontend (cliente na porta 5173, barbeiro na porta 5174) e `npm run dev` no backend (porta 4000).
 
 ## Backend (`server/`)
 
@@ -40,7 +41,7 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
   - `POST /api/blocked-slots` — bloqueia horário específico.
   - `DELETE /api/blocked-slots/:id` — remove bloqueio.
 
-## Frontend (`client/`)
+## Frontend Cliente (`customer-app/`)
 
 - Criado com Vite + React 18 + TypeScript.
 - Comandos úteis:
@@ -48,8 +49,15 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
   - `npm run build` — gera build de produção.
   - `npm run preview` — serve build localmente.
 - Variáveis de ambiente: copiar `.env.example` para `.env` e ajustar `VITE_API_BASE_URL` se necessário.
-- UI responsiva com paleta branco/cinza/preto, páginas:
-  - `/` — fluxo do cliente.
-  - `/barbeiro` — dashboard de agendamentos/bloqueios.
+- UI responsiva com paleta branco/cinza/preto focada no agendamento do cliente.
+
+## Frontend Barbeiro (`barber-app/`)
+
+- Mesmo stack (Vite + React 18 + TypeScript), mas separado para acesso restrito.
+- Comandos úteis:
+  - `npm run dev` — inicia Vite na porta 5174.
+  - `npm run build` e `npm run preview` — equivalentes ao projeto do cliente.
+- Ambiente: copiar `.env.example` para `.env` e configurar `VITE_API_BASE_URL`.
+- Interface dedicada ao barbeiro para visualizar agendamentos, bloquear horários e remover bloqueios.
 
 Detalhes adicionais estão documentados dentro de cada diretório.
