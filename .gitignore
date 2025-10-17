@@ -9,5 +9,6 @@ yarn-error.log*
 pnpm-debug.log*
 server/dist
 server/prisma/dev.db
-client/dist
+customer-app/dist
+barber-app/dist
 .DS_Store

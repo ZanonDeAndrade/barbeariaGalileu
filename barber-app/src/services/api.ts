@@ -1,7 +1,6 @@
 import type {
   Appointment,
   BlockedSlot,
-  CreateAppointmentPayload,
   CreateBlockedSlotPayload,
   HaircutOption,
   SlotAvailability,
@@ -54,11 +53,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   getHaircuts: () => request<HaircutOption[]>('/haircuts'),
   getAvailability: (date: string) => request<SlotAvailability[]>(`/appointments/availability?date=${date}`),
-  createAppointment: (payload: CreateAppointmentPayload) =>
-    request<Appointment>('/appointments', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
   listAppointments: () => request<Appointment[]>('/appointments'),
   createBlockedSlot: (payload: CreateBlockedSlotPayload) =>
     request<BlockedSlot>('/blocked-slots', {
