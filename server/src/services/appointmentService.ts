@@ -4,8 +4,8 @@ import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
 import { getHaircutById, listHaircutOptions } from './haircutService.js';
 
-export const BUSINESS_START_HOUR = 9;
-export const BUSINESS_END_HOUR = 18;
+export const BUSINESS_START_HOUR = 8;
+export const BUSINESS_END_HOUR = 21;
 export const SLOT_INTERVAL_MINUTES = 60;
 
 const createAppointmentSchema = z.object({
