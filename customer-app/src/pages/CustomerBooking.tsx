@@ -178,17 +178,6 @@ function CustomerBooking() {
                   selectedSlot={selectedSlot}
                   onSelect={setSelectedSlot}
                 />
-                <div className="legend">
-                  <div className="legend-item">
-                    <span className="legend-dot available" /> Disponível
-                  </div>
-                  <div className="legend-item">
-                    <span className="legend-dot booked" /> Reservado
-                  </div>
-                  <div className="legend-item">
-                    <span className="legend-dot blocked" /> Bloqueado
-                  </div>
-                </div>
               </>
             )}
           </div>
@@ -218,18 +207,6 @@ function CustomerBooking() {
             </button>
           </div>
         </form>
-      </section>
-
-      <section className="card">
-        <div className="section-title">Como funciona</div>
-        <p>
-          Escolha o tipo de corte e defina o horário que melhor se encaixa na sua agenda. Você receberá o atendimento
-          exclusivo da Barbearia Galileu, com toda a atenção e cuidado que você merece.
-        </p>
-        <p style={{ marginTop: '1rem', color: 'var(--color-text-muted)' }}>
-          Em caso de dúvidas ou necessidade de alteração, entre em contato pelo telefone informado no momento do
-          agendamento.
-        </p>
       </section>
     </div>
   );

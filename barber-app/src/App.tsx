@@ -1,3 +1,4 @@
+import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
 import BarberDashboard from './pages/BarberDashboard';
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
         </div>
       </header>
       <main className="app-main">
+        <AddToHomescreenPrompt />
         <BarberDashboard />
       </main>
       <footer className="app-footer">
