@@ -1,3 +1,4 @@
+import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
 import CustomerBooking from './pages/CustomerBooking';
 
 function App() {
@@ -7,6 +8,7 @@ function App() {
         <div className="brand">Barbearia Galileu</div>
       </header>
       <main className="app-main">
+        <AddToHomescreenPrompt />
         <CustomerBooking />
       </main>
       <footer className="app-footer">

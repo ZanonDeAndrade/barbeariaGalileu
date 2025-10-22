@@ -6,7 +6,7 @@ import { getHaircutById, listHaircutOptions } from './haircutService.js';
 
 export const BUSINESS_START_HOUR = 8;
 export const BUSINESS_END_HOUR = 21;
-export const SLOT_INTERVAL_MINUTES = 60;
+export const SLOT_INTERVAL_MINUTES = 30;
 
 const createAppointmentSchema = z.object({
   customerName: z.string().min(3, 'Informe o nome completo'),
@@ -71,7 +71,14 @@ export async function createAppointment(payload: CreateAppointmentInput) {
     throw new HttpError(400, 'Horário fora do expediente');
   }
 
-  await ensureSlotAvailable(slot);
+  const expectedSlotCount = Math.max(1, Math.ceil(haircut.durationMinutes / SLOT_INTERVAL_MINUTES));
+  const requiredSlots = computeSequentialSlots(slot, haircut.durationMinutes);
+
+  if (requiredSlots.length !== expectedSlotCount) {
+    throw new HttpError(400, 'Horário fora do expediente');
+  }
+
+  await ensureSlotsAvailable(requiredSlots);
 
   const appointment = await prisma.appointment.create({
     data: {
@@ -79,7 +86,7 @@ export async function createAppointment(payload: CreateAppointmentInput) {
       customerPhone: data.customerPhone,
       haircutType: haircut.id,
       notes: data.notes,
-      startTime: slot,
+      startTime: requiredSlots[0],
       durationMinutes: haircut.durationMinutes,
     },
   });
@@ -126,21 +133,29 @@ export async function getAvailability(dateISO: string | undefined): Promise<Slot
   ]);
 
   const slots = generateDailySlots(dayStart);
+  const bookedSlotTimes = new Set<number>();
+  const blockedSlotTimes = new Set<number>(
+    blockedSlots.map((item) => item.startTime.getTime()),
+  );
+
+  appointments.forEach((appointment) => {
+    const appointmentSlots = computeSequentialSlots(
+      appointment.startTime,
+      appointment.durationMinutes,
+    );
+    appointmentSlots.forEach((appointmentSlot) => {
+      bookedSlotTimes.add(appointmentSlot.getTime());
+    });
+  });
 
   return slots.map((slot) => {
-    const appointment = appointments.find(
-      (item) => item.startTime.getTime() === slot.getTime(),
-    );
-    const blocked = blockedSlots.find(
-      (item) => item.startTime.getTime() === slot.getTime(),
-    );
+    const slotTime = slot.getTime();
 
     let status: SlotStatus = 'available';
-    if (appointment) {
-      status = 'booked';
-    }
-    if (blocked) {
+    if (blockedSlotTimes.has(slotTime)) {
       status = 'blocked';
+    } else if (bookedSlotTimes.has(slotTime)) {
+      status = 'booked';
     }
 
     return {
@@ -181,21 +196,68 @@ export function generateDailySlots(baseDate: Date): Date[] {
   return slots;
 }
 
-export async function ensureSlotAvailable(slot: Date) {
-  const [appointment, blocked] = await Promise.all([
-    prisma.appointment.findUnique({
-      where: { startTime: slot },
+function computeSequentialSlots(startSlot: Date, durationMinutes: number): Date[] {
+  const slotsNeeded = Math.max(1, Math.ceil(durationMinutes / SLOT_INTERVAL_MINUTES));
+  const businessSlots = generateDailySlots(startOfDay(startSlot));
+  const slotMap = new Map<number, Date>(
+    businessSlots.map((candidate) => [candidate.getTime(), candidate]),
+  );
+
+  const result: Date[] = [];
+  for (let index = 0; index < slotsNeeded; index += 1) {
+    const targetTime = addMinutes(startSlot, SLOT_INTERVAL_MINUTES * index).getTime();
+    const match = slotMap.get(targetTime);
+    if (!match) {
+      break;
+    }
+    result.push(match);
+  }
+
+  return result;
+}
+
+export async function ensureSlotsAvailable(slots: Date[]) {
+  if (slots.length === 0) {
+    throw new HttpError(400, 'Horário inválido');
+  }
+
+  const requestedTimes = new Set(slots.map((slot) => slot.getTime()));
+  const dayStart = startOfDay(slots[0]);
+  const dayEnd = endOfDay(slots[0]);
+
+  const [appointments, blocked] = await Promise.all([
+    prisma.appointment.findMany({
+      where: {
+        startTime: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
     }),
-    prisma.blockedSlot.findUnique({
-      where: { startTime: slot },
+    prisma.blockedSlot.findMany({
+      where: {
+        startTime: {
+          in: slots,
+        },
+      },
     }),
   ]);
 
-  if (appointment) {
+  const conflictingAppointment = appointments.find((appointment) => {
+    const appointmentSlots = computeSequentialSlots(
+      appointment.startTime,
+      appointment.durationMinutes,
+    );
+    return appointmentSlots.some(
+      (appointmentSlot) => requestedTimes.has(appointmentSlot.getTime()),
+    );
+  });
+
+  if (conflictingAppointment) {
     throw new HttpError(409, 'Horário indisponível');
   }
 
-  if (blocked) {
+  if (blocked.length > 0) {
     throw new HttpError(409, 'Horário bloqueado pelo barbeiro');
   }
 }

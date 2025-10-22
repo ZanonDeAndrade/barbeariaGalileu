@@ -215,6 +215,55 @@ button {
   color: var(--color-text-muted);
 }
 
+.a2hs-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: var(--shadow-elevated);
+}
+
+.a2hs-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.a2hs-content strong {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.a2hs-content p {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.a2hs-dismiss {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border 0.2s ease, color 0.2s ease;
+}
+
+.a2hs-dismiss:hover {
+  border-color: var(--color-border);
+  color: var(--color-highlight);
+}
+
 .status-banner.success {
   border-color: rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.08);

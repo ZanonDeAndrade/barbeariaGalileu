@@ -2,7 +2,7 @@ import { endOfDay, parseISO, startOfDay } from 'date-fns';
 import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
-import { ensureSlotAvailable, normalizeToBusinessSlot } from './appointmentService.js';
+import { ensureSlotsAvailable, normalizeToBusinessSlot } from './appointmentService.js';
 
 const createBlockedSlotSchema = z.object({
   startTime: z.string().transform((value) => {
@@ -49,7 +49,7 @@ export async function createBlockedSlot(payload: CreateBlockedSlotInput) {
     throw new HttpError(400, 'Horário fora do expediente');
   }
 
-  await ensureSlotAvailable(slot);
+  await ensureSlotsAvailable([slot]);
 
   return prisma.blockedSlot.create({
     data: {

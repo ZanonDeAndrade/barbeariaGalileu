@@ -179,17 +179,6 @@ function BarberDashboard() {
               selectedSlot={selectedSlot}
               onSelect={setSelectedSlot}
             />
-            <div className="legend">
-              <div className="legend-item">
-                <span className="legend-dot available" /> Disponível
-              </div>
-              <div className="legend-item">
-                <span className="legend-dot booked" /> Reservado
-              </div>
-              <div className="legend-item">
-                <span className="legend-dot blocked" /> Bloqueado
-              </div>
-            </div>
             <div className="status-banner" style={{ marginTop: '1.5rem' }}>
               {hasAvailableSlots
                 ? 'Selecione um horário livre e utilize o botão abaixo para bloqueá-lo, caso necessário.'
