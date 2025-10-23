@@ -1,13 +1,13 @@
 # Barbearia Galileu
 
-Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, construída com React + TypeScript no frontend e Node.js + Express + TypeScript no backend. O backend utiliza Prisma ORM com banco SQLite por padrão, podendo ser adaptado para outros provedores.
+Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, construída com React + TypeScript no frontend e ASP.NET Core 8 + Entity Framework Core (SQLite) no backend.
 
 ## Estrutura
 
 - `customer-app/`: aplicação web para clientes realizarem agendamentos.
 - `barber-app/`: painel separado para o barbeiro gerenciar agenda e bloqueios.
-- `server/`: API REST para gerenciamento dos agendamentos, horários e bloqueios.
-- `index.ts`: placeholder original (não utilizado).
+- `server/`: API REST em .NET para gerenciamento dos agendamentos, horários e bloqueios.
+- `BarbeariaGalileu.sln`: solução para abrir o backend no Visual Studio/VS Code.
 
 ## Requisitos de alto nível
 
@@ -20,18 +20,21 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
 
 ## Setup resumido
 
-1. Instalar dependências em `server/`, `customer-app/` e `barber-app/` com `npm install`.
-2. Em `server/`, configurar o arquivo `.env` (ver `.env.example`) e executar `npx prisma migrate dev`.
-3. Rodar `npm run dev` em cada frontend (cliente na porta 5173, barbeiro na porta 5174) e `npm run dev` no backend (porta 4000).
+1. Instalar dependências dos frontends (`customer-app/` e `barber-app/`) com `npm install`.
+2. Restaurar o backend .NET:
+   ```bash
+   cd server
+   DOTNET_CLI_HOME=$PWD/.dotnet dotnet restore
+   ```
+3. Rodar o backend com `DOTNET_CLI_HOME=$PWD/.dotnet dotnet run` (HTTP em `http://127.0.0.1:5000`, HTTPS em `https://127.0.0.1:7000`) e iniciar os frontends com `npm run dev` (`customer-app` usa a porta 5173 e `barber-app` a 5174).
 
 ## Backend (`server/`)
 
-- API construída com Express + Prisma (SQLite por default).
+- API construída com ASP.NET Core 8 + Entity Framework Core (SQLite por padrão, basta ajustar a connection string para trocar de banco).
 - Comandos úteis:
-  - `npm run dev` — inicia API em modo desenvolvimento via `ts-node-dev`.
-  - `npm run build` / `npm start` — gera JS compilado e executa em produção.
-  - `npm run prisma:migrate` — executa migrations (atalho para `prisma migrate dev`).
-  - `npm run prisma:generate` — atualiza client Prisma.
+  - `dotnet run` — inicia a API em modo desenvolvimento.
+  - `dotnet build` — compila o projeto.
+  - `dotnet ef database update` — aplica migrations (se estiver utilizando migrations do EF).
 - Endpoints principais:
   - `GET /api/haircuts` — lista serviços disponíveis.
   - `GET /api/appointments/availability?date=YYYY-MM-DD` — retorna horários e status.
@@ -48,7 +51,7 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
   - `npm run dev` — inicia Vite em modo desenvolvimento (porta 5173).
   - `npm run build` — gera build de produção.
   - `npm run preview` — serve build localmente.
-- Variáveis de ambiente: copiar `.env.example` para `.env` e ajustar `VITE_API_BASE_URL` se necessário.
+- Variáveis de ambiente: definir `VITE_API_BASE_URL` (fallback padrão: `http://localhost:5000/api`).
 - UI responsiva com paleta branco/cinza/preto focada no agendamento do cliente.
 
 ## Frontend Barbeiro (`barber-app/`)
@@ -57,7 +60,7 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
 - Comandos úteis:
   - `npm run dev` — inicia Vite na porta 5174.
   - `npm run build` e `npm run preview` — equivalentes ao projeto do cliente.
-- Ambiente: copiar `.env.example` para `.env` e configurar `VITE_API_BASE_URL`.
+- Ambiente: definir `VITE_API_BASE_URL` se quiser sobrescrever o fallback (padrão `http://localhost:5000/api`).
 - Interface dedicada ao barbeiro para visualizar agendamentos, bloquear horários e remover bloqueios.
 
 Detalhes adicionais estão documentados dentro de cada diretório.
