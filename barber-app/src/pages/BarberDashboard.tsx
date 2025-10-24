@@ -1,31 +1,27 @@
 import { format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
-import { AvailabilityGrid } from '../components/AvailabilityGrid';
-import { api, ApiError } from '../services/api';
-import type {
-  Appointment,
-  BlockedSlot,
-  HaircutOption,
-  SlotAvailability,
-} from '../types';
+import { api } from '../services/api';
+import type { Appointment, HaircutOption } from '../types';
+
+type BarberDashboardProps = {
+  selectedDate: string;
+  onChangeDate: (date: string) => void;
+  onNavigateToBlocks: () => void;
+};
 
 const today = format(new Date(), 'yyyy-MM-dd');
 
-function BarberDashboard() {
-  const [selectedDate, setSelectedDate] = useState<string>(today);
+function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: BarberDashboardProps) {
   const [haircuts, setHaircuts] = useState<HaircutOption[]>([]);
-  const [availability, setAvailability] = useState<SlotAvailability[]>([]);
-  const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState<string>();
-  const [blockReason, setBlockReason] = useState('');
-  const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: 'error'; message: string } | null>(null);
 
   useEffect(() => {
     async function fetchInitialData() {
       setLoadingAppointments(true);
+      setFeedback(null);
+
       try {
         const [haircutList, appointmentList] = await Promise.all([
           api.getHaircuts(),
@@ -37,7 +33,7 @@ function BarberDashboard() {
         console.error(error);
         setFeedback({
           type: 'error',
-          message: 'Falha ao carregar agendamentos iniciais.',
+          message: 'Falha ao carregar os agendamentos.',
         });
       } finally {
         setLoadingAppointments(false);
@@ -46,34 +42,6 @@ function BarberDashboard() {
 
     fetchInitialData();
   }, []);
-
-  useEffect(() => {
-    async function fetchAvailabilityData() {
-      setLoadingAvailability(true);
-      setFeedback(null);
-      setSelectedSlot(undefined);
-      try {
-        const [slots, blocks] = await Promise.all([
-          api.getAvailability(selectedDate),
-          api.listBlockedSlots(selectedDate),
-        ]);
-        setAvailability(slots);
-        setBlockedSlots(blocks);
-      } catch (error) {
-        console.error(error);
-        setAvailability([]);
-        setBlockedSlots([]);
-        setFeedback({
-          type: 'error',
-          message: 'Não foi possível carregar os horários para o barbeiro.',
-        });
-      } finally {
-        setLoadingAvailability(false);
-      }
-    }
-
-    fetchAvailabilityData();
-  }, [selectedDate]);
 
   const haircutMap = useMemo(
     () => Object.fromEntries(haircuts.map((item) => [item.id, item.name])),
@@ -88,134 +56,65 @@ function BarberDashboard() {
     [appointments, selectedDate],
   );
 
-  const hasAvailableSlots = availability.some((slot) => slot.status === 'available');
-
-  const handleBlockSlot = async () => {
-    if (!selectedSlot) {
-      return;
-    }
-
-    setFeedback(null);
+  const readableSelectedDate = useMemo(() => {
     try {
-      await api.createBlockedSlot({
-        startTime: selectedSlot,
-        reason: blockReason.trim() || undefined,
-      });
-      setFeedback({
-        type: 'success',
-        message: 'Horário bloqueado com sucesso.',
-      });
-      setBlockReason('');
-      setSelectedSlot(undefined);
-      await refreshDailyData();
+      return selectedDate
+        ? format(parseISO(`${selectedDate}T00:00:00`), 'dd/MM/yyyy')
+        : '--/--/----';
     } catch (error) {
-      console.error(error);
-      if (error instanceof ApiError) {
-        setFeedback({ type: 'error', message: error.message });
-      } else {
-        setFeedback({ type: 'error', message: 'Não foi possível bloquear o horário.' });
-      }
+      console.error('Erro ao formatar data selecionada', error);
+      return '--/--/----';
     }
-  };
-
-  const handleRemoveBlockedSlot = async (id: string) => {
-    setFeedback(null);
-    try {
-      await api.removeBlockedSlot(id);
-      setFeedback({
-        type: 'success',
-        message: 'Bloqueio removido.',
-      });
-      await refreshDailyData();
-    } catch (error) {
-      console.error(error);
-      setFeedback({
-        type: 'error',
-        message: 'Não foi possível remover o bloqueio.',
-      });
-    }
-  };
-
-  const refreshDailyData = async () => {
-    const [slots, blocks, appointmentList] = await Promise.all([
-      api.getAvailability(selectedDate),
-      api.listBlockedSlots(selectedDate),
-      api.listAppointments(),
-    ]);
-    setAvailability(slots);
-    setBlockedSlots(blocks);
-    setAppointments(appointmentList);
-  };
+  }, [selectedDate]);
 
   return (
     <div className="content-grid">
       <section>
         <h1 className="page-title">Área do barbeiro</h1>
         <p className="page-subtitle">
-          Gerencie os horários da agenda, bloqueie períodos indisponíveis e acompanhe os agendamentos confirmados.
+          Acompanhe os agendamentos confirmados e mantenha o dia organizado.
         </p>
       </section>
 
       <section className="card">
-        <div className="section-title">Controle diário</div>
-        <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
+        <div className="flex-between" style={{ alignItems: 'flex-start' }}>
+          <div>
+            <div className="section-title">Controle diário</div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+              Defina a data para visualizar os horários confirmados.
+            </p>
+          </div>
+          <button type="button" className="btn btn-secondary" onClick={onNavigateToBlocks}>
+            Bloquear horários
+          </button>
+        </div>
+        <div className="form-grid" style={{ marginTop: '1.5rem' }}>
           <label>
             Escolha a data
             <input
               type="date"
               min={today}
               value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
+              onChange={(event) => onChangeDate(event.target.value)}
             />
           </label>
         </div>
-
-        {loadingAvailability ? (
-          <div className="status-banner">Carregando horários para o dia selecionado...</div>
-        ) : (
-          <>
-            <AvailabilityGrid
-              slots={availability}
-              selectedSlot={selectedSlot}
-              onSelect={setSelectedSlot}
-            />
-            <div className="status-banner" style={{ marginTop: '1.5rem' }}>
-              {hasAvailableSlots
-                ? 'Selecione um horário livre e utilize o botão abaixo para bloqueá-lo, caso necessário.'
-                : 'Todos os horários deste dia estão reservados ou bloqueados.'}
-            </div>
-            <div className="form-grid" style={{ marginTop: '1.5rem' }}>
-              <label>
-                Motivo do bloqueio (opcional)
-                <input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} />
-              </label>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleBlockSlot}
-                disabled={!selectedSlot}
-              >
-                Bloquear horário
-              </button>
-            </div>
-          </>
-        )}
       </section>
 
       <section className="card">
-        <div className="flex-between">
-          <div>
-            <div className="section-title">Agendamentos confirmados</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-              Visualize os agendamentos confirmados para o dia selecionado.
-            </p>
-          </div>
-        </div>
+        <div className="section-title">Agendamentos do dia</div>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+          Lista dos atendimentos confirmados para {readableSelectedDate}.
+        </p>
 
         {loadingAppointments ? (
-          <div className="status-banner" style={{ marginTop: '1rem' }}>Carregando agendamentos...</div>
+          <div className="status-banner" style={{ marginTop: '1rem' }}>
+            Carregando agendamentos...
+          </div>
         ) : dailyAppointments.length === 0 ? (
-          <div className="status-banner" style={{ marginTop: '1rem' }}>Nenhum agendamento encontrado para esta data.</div>
+          <div className="status-banner" style={{ marginTop: '1rem' }}>
+            Nenhum agendamento encontrado para esta data.
+          </div>
         ) : (
           <div className="table-responsive">
             <table className="table">
@@ -233,59 +132,12 @@ function BarberDashboard() {
                   const dateObj = parseISO(appointment.startTime);
                   return (
                     <tr key={appointment.id}>
-                      <td data-label="Data">{format(dateObj, "dd/MM/yyyy")}</td>
+                      <td data-label="Data">{format(dateObj, 'dd/MM/yyyy')}</td>
                       <td data-label="Horário">{format(dateObj, 'HH:mm')}</td>
                       <td data-label="Cliente">{appointment.customerName}</td>
                       <td data-label="Telefone">{appointment.customerPhone}</td>
                       <td data-label="Serviço">
                         {haircutMap[appointment.haircutType] ?? appointment.haircutType}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="flex-between">
-          <div>
-            <div className="section-title">Bloqueios do dia selecionado</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-              Remova um bloqueio caso o horário volte a ficar disponível.
-            </p>
-          </div>
-        </div>
-
-        {blockedSlots.length === 0 ? (
-          <div className="status-banner" style={{ marginTop: '1rem' }}>
-            Nenhum horário bloqueado para esta data.
-          </div>
-        ) : (
-          <div className="table-responsive">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Horário</th>
-                  <th>Motivo</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {blockedSlots.map((slot) => {
-                  const slotDate = parseISO(slot.startTime);
-                  return (
-                    <tr key={slot.id}>
-                      <td data-label="Horário">{format(slotDate, 'HH:mm')}</td>
-                      <td data-label="Motivo">{slot.reason ?? 'Sem motivo cadastrado'}</td>
-                      <td data-label="Ações">
-                        <div className="inline-actions">
-                          <button type="button" className="btn btn-secondary" onClick={() => handleRemoveBlockedSlot(slot.id)}>
-                            Desbloquear
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   );
