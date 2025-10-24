@@ -8,7 +8,7 @@ export class ApiError extends Error {
 
   constructor(status: number, message: string, details?: unknown) {
     super(message);
-    this.status = status;
+    this.status = status;http://localhost:4000/api/haircutshttp://localhost:4000/api/haircuts
     this.details = details;
   }
 }
