@@ -137,6 +137,19 @@ label {
   color: var(--color-text-muted);
 }
 
+.date-field {
+  cursor: pointer;
+  width: 100%;
+}
+
+.date-field input {
+  width: 100%;
+}
+
+.date-field input[type='date'] {
+  cursor: pointer;
+}
+
 .form-helper {
   font-size: 0.8rem;
   color: var(--color-text-soft);

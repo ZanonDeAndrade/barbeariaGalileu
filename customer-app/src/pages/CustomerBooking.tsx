@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEventHandler } from 'react';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
 import { api, ApiError } from '../services/api';
 import type {
@@ -22,6 +23,8 @@ function CustomerBooking() {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const isProgrammaticPickerOpen = useRef(false);
 
   useEffect(() => {
     async function fetchHaircuts() {
@@ -78,6 +81,40 @@ function CustomerBooking() {
       customerPhone.trim().length >= 8 &&
       !submitting,
   );
+
+  const openNativeDatePicker = () => {
+    const input = dateInputRef.current;
+    if (isProgrammaticPickerOpen.current) {
+      return;
+    }
+
+    if (!input) {
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker();
+      return;
+    }
+
+    isProgrammaticPickerOpen.current = true;
+    pickerInput.click();
+    setTimeout(() => {
+      isProgrammaticPickerOpen.current = false;
+    }, 0);
+  };
+
+  const handleDateAreaClick: MouseEventHandler<HTMLDivElement> = (event) => {
+    if (isProgrammaticPickerOpen.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openNativeDatePicker();
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -157,12 +194,15 @@ function CustomerBooking() {
             <div className="flex-between">
               <label style={{ flex: 1 }}>
                 Data do atendimento
-                <input
-                  type="date"
-                  min={today}
-                  value={selectedDate}
-                  onChange={(event) => setSelectedDate(event.target.value)}
-                />
+                <div className="date-field" onClick={handleDateAreaClick}>
+                  <input
+                    ref={dateInputRef}
+                    type="date"
+                    min={today}
+                    value={selectedDate}
+                    onChange={(event) => setSelectedDate(event.target.value)}
+                  />
+                </div>
               </label>
             </div>
           </div>

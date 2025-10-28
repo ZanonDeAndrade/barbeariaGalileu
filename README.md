@@ -40,6 +40,10 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
   - `GET /api/blocked-slots?date=YYYY-MM-DD` — bloqueios do dia.
   - `POST /api/blocked-slots` — bloqueia horário específico.
   - `DELETE /api/blocked-slots/:id` — remove bloqueio.
+- Variáveis de ambiente:
+  - `DATABASE_URL` — conexão do Prisma (SQLite local por padrão).
+  - `ALLOWED_ORIGINS` — lista de origens separadas por vírgula autorizadas no CORS.
+  - `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_API_VERSION` (opcional) — credenciais da WhatsApp Cloud API (Meta) usadas para enviar as confirmações de agendamento.
 
 ## Frontend Cliente (`customer-app/`)
 

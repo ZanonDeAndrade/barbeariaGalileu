@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
 import { getHaircutById, listHaircutOptions } from './haircutService.js';
+import { notifyAppointmentConfirmation } from './notificationService.js';
 
 export const BUSINESS_START_HOUR = 8;
 export const BUSINESS_END_HOUR = 21;
@@ -90,6 +91,9 @@ export async function createAppointment(payload: CreateAppointmentInput) {
       durationMinutes: haircut.durationMinutes,
     },
   });
+
+  // Envia confirmação pelo WhatsApp sem bloquear a resposta da API.
+  void notifyAppointmentConfirmation(appointment, haircut);
 
   return appointment;
 }
