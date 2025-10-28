@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEventHandler } from 'react';
 import { api } from '../services/api';
 import type { Appointment, HaircutOption } from '../types';
 
@@ -16,6 +17,8 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error'; message: string } | null>(null);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const isProgrammaticPickerOpen = useRef(false);
 
   useEffect(() => {
     async function fetchInitialData() {
@@ -67,6 +70,40 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
     }
   }, [selectedDate]);
 
+  const openNativeDatePicker = () => {
+    const input = dateInputRef.current;
+    if (isProgrammaticPickerOpen.current) {
+      return;
+    }
+
+    if (!input) {
+      return;
+    }
+
+    input.focus({ preventScroll: true });
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+    if (typeof pickerInput.showPicker === 'function') {
+      pickerInput.showPicker();
+      return;
+    }
+
+    isProgrammaticPickerOpen.current = true;
+    pickerInput.click();
+    setTimeout(() => {
+      isProgrammaticPickerOpen.current = false;
+    }, 0);
+  };
+
+  const handleDateFieldClick: MouseEventHandler<HTMLDivElement> = (event) => {
+    if (isProgrammaticPickerOpen.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openNativeDatePicker();
+  };
+
   return (
     <div className="content-grid">
       <section>
@@ -91,12 +128,15 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
         <div className="form-grid" style={{ marginTop: '1.5rem' }}>
           <label>
             Escolha a data
-            <input
-              type="date"
-              min={today}
-              value={selectedDate}
-              onChange={(event) => onChangeDate(event.target.value)}
-            />
+            <div className="date-field" onClick={handleDateFieldClick}>
+              <input
+                ref={dateInputRef}
+                type="date"
+                min={today}
+                value={selectedDate}
+                onChange={(event) => onChangeDate(event.target.value)}
+              />
+            </div>
           </label>
         </div>
       </section>

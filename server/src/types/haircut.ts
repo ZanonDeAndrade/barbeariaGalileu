@@ -3,4 +3,5 @@ export interface HaircutOption {
   name: string;
   description: string;
   durationMinutes: number;
+  priceCents: number;
 }
