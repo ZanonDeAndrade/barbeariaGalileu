@@ -6,7 +6,8 @@ import { getHaircutById, listHaircutOptions } from './haircutService.js';
 import { notifyAppointmentConfirmation } from './notificationService.js';
 
 export const BUSINESS_START_HOUR = 8;
-export const BUSINESS_END_HOUR = 21;
+export const BUSINESS_END_HOUR = 19;
+export const BUSINESS_END_MINUTE = 30; 
 export const SLOT_INTERVAL_MINUTES = 30;
 
 const createAppointmentSchema = z.object({
@@ -172,9 +173,9 @@ export async function getAvailability(dateISO: string | undefined): Promise<Slot
 export function normalizeToBusinessSlot(date: Date): Date | null {
   const businessDay = startOfDay(date);
   const openingTime = set(businessDay, { hours: BUSINESS_START_HOUR });
-  const closingTime = set(businessDay, { hours: BUSINESS_END_HOUR });
+  const closingTime = set(businessDay, { hours: BUSINESS_END_HOUR, minutes: BUSINESS_END_MINUTE });
 
-  if (isBefore(date, openingTime) || !isBefore(date, closingTime)) {
+  if (isBefore(date, openingTime) || !isBefore(date, addMinutes(closingTime, SLOT_INTERVAL_MINUTES))) {
     return null;
   }
 
@@ -187,12 +188,12 @@ export function normalizeToBusinessSlot(date: Date): Date | null {
 
 export function generateDailySlots(baseDate: Date): Date[] {
   const start = set(baseDate, { hours: BUSINESS_START_HOUR, minutes: 0, seconds: 0, milliseconds: 0 });
-  const end = set(baseDate, { hours: BUSINESS_END_HOUR, minutes: 0, seconds: 0, milliseconds: 0 });
+  const end = set(baseDate, { hours: BUSINESS_END_HOUR, minutes: BUSINESS_END_MINUTE, seconds: 0, milliseconds: 0 });
 
   const slots: Date[] = [];
   let current = start;
 
-  while (isBefore(current, end)) {
+  while (isBefore(current, end) || current.getTime() === end.getTime()) {
     slots.push(current);
     current = addMinutes(current, SLOT_INTERVAL_MINUTES);
   }
