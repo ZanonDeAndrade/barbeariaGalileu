@@ -1,22 +1,26 @@
 -- CreateTable
 CREATE TABLE "Appointment" (
-    "id" TEXT NOT NULL PRIMARY KEY,
+    "id" TEXT NOT NULL,
     "customerName" TEXT NOT NULL,
     "customerPhone" TEXT NOT NULL,
     "haircutType" TEXT NOT NULL,
     "notes" TEXT,
-    "startTime" DATETIME NOT NULL,
+    "startTime" TIMESTAMP(3) NOT NULL,
     "durationMinutes" INTEGER NOT NULL DEFAULT 60,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Appointment_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "BlockedSlot" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "startTime" DATETIME NOT NULL,
+    "id" TEXT NOT NULL,
+    "startTime" TIMESTAMP(3) NOT NULL,
     "reason" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "BlockedSlot_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex

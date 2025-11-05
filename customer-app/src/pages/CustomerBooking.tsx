@@ -172,7 +172,7 @@ function CustomerBooking() {
         </p>
       </section>
 
-      <section className="card">
+      <section className="card card--dark">
         <form className="form-grid" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label>

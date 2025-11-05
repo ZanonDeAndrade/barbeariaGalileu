@@ -18,7 +18,7 @@ function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="brand">Barbearia Galileu</div>
+        <div className="brand">Barbearia De David</div>
         <div className="page-subtitle" style={{ marginBottom: 0 }}>
           Painel interno do barbeiro
         </div>
@@ -40,7 +40,7 @@ function App() {
         )}
       </main>
       <footer className="app-footer">
-        © {new Date().getFullYear()} Barbearia Galileu. Uso restrito ao time interno.
+        © {new Date().getFullYear()} Barbearia De David. Uso restrito ao time interno.
       </footer>
     </div>
   );
