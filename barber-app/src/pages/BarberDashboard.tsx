@@ -117,7 +117,7 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
         <div className="flex-between" style={{ alignItems: 'flex-start' }}>
           <div>
             <div className="section-title">Controle diário</div>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+            <p style={{ fontSize: '0.9rem' }}>
               Defina a data para visualizar os horários confirmados.
             </p>
           </div>
@@ -143,7 +143,7 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
 
       <section className="card">
         <div className="section-title">Agendamentos do dia</div>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+        <p style={{ fontSize: '0.9rem' }}>
           Lista dos atendimentos confirmados para {readableSelectedDate}.
         </p>
 
