@@ -807,3 +807,21 @@ button {
     justify-content: flex-start;
   }
 }
+
+/* --- Fix: contraste do select (Windows/Edge) --- */
+.card select {
+  color: #ffffff;
+  background: #151515;
+  border: 1px solid #2a2a2a;
+}
+
+.card select option,
+.card select optgroup {
+  color: #111111;
+  background: #ffffff;
+}
+
+.card select option:checked {
+  background: #e9ecef;
+  color: #111111;
+}
