@@ -16,6 +16,10 @@ model Appointment {
   notes           String?
   startTime       DateTime @unique
   durationMinutes Int      @default(60)
+  // Pagamentos
+  paymentMethod   String?  // cartao | pix | dinheiro
+  paymentStatus   String?  // pending | approved | rejected
+  mpPaymentId     String?  @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }

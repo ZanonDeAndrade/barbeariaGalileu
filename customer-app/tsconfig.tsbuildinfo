@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/components/AddToHomescreenPrompt.tsx","./src/components/AvailabilityGrid.tsx","./src/pages/CustomerBooking.tsx","./src/services/api.ts","./src/types/index.ts","./vite-env.d.ts"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/addtohomescreenprompt.tsx","./src/components/availabilitygrid.tsx","./src/components/pagamento.tsx","./src/pages/customerbooking.tsx","./src/services/api.ts","./src/services/payments.ts","./src/types/index.ts","./vite-env.d.ts"],"version":"5.9.3"}

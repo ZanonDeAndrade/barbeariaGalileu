@@ -165,6 +165,7 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
                   <th>Cliente</th>
                   <th>Telefone</th>
                   <th>Serviço</th>
+                  <th>Pagamento</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,6 +179,13 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
                       <td data-label="Telefone">{appointment.customerPhone}</td>
                       <td data-label="Serviço">
                         {haircutMap[appointment.haircutType] ?? appointment.haircutType}
+                      </td>
+                      <td data-label="Pagamento">
+                        {appointment.paymentMethod
+                          ? `${appointment.paymentMethod}${
+                              appointment.paymentStatus ? ` (${appointment.paymentStatus})` : ''
+                            }`
+                          : '—'}
                       </td>
                     </tr>
                   );

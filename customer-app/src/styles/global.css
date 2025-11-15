@@ -842,3 +842,23 @@ button {
   background: #e9ecef;
   color: #111111;
 }
+
+/* --- Payment Brick (Mercado Pago) contraste em card escuro --- */
+.card.card--dark #payment_brick_container {
+  background: #ffffff;
+  color: #111111;
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.card.card--dark #payment_brick_container * {
+  color: #111111 !important;
+}
+
+.card.card--dark #payment_brick_container input,
+.card.card--dark #payment_brick_container select,
+.card.card--dark #payment_brick_container textarea {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border-color: #d0d0d0 !important;
+}

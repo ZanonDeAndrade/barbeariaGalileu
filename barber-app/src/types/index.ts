@@ -20,6 +20,8 @@ export interface Appointment {
   notes?: string | null;
   startTime: string;
   durationMinutes: number;
+  paymentMethod?: string | null;
+  paymentStatus?: string | null;
   createdAt: string;
   updatedAt: string;
 }
