@@ -35,7 +35,12 @@ export async function processCardPaymentHandler(req: Request, res: Response) {
   const paymentId = (payment as any).id?.toString();
 
   if (status === 'approved') {
-    const created = await createAppointment(appointment as AppointmentDraft);
+    const appointmentDraft = appointment as AppointmentDraft;
+    const appointmentToCreate = {
+      ...appointmentDraft,
+      startTime: new Date(appointmentDraft.startTime),
+    };
+    const created = await createAppointment(appointmentToCreate);
     await markAppointmentPayment(created.id, {
       method: 'cartao',
       status: 'approved',
@@ -72,7 +77,12 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
 
 export async function createCashAppointmentHandler(req: Request, res: Response) {
   const appointment = appointmentDraftSchema.parse(req.body);
-  const created = await createAppointment(appointment as AppointmentDraft);
+  const appointmentDraft = appointment as AppointmentDraft;
+  const appointmentToCreate = {
+    ...appointmentDraft,
+    startTime: new Date(appointmentDraft.startTime),
+  };
+  const created = await createAppointment(appointmentToCreate);
   await markAppointmentPayment(created.id, { method: 'dinheiro', status: 'pending' });
   res.status(201).json({ appointmentId: created.id, status: 'pending' });
 }
@@ -97,7 +107,11 @@ export async function paymentWebhookHandler(req: Request, res: Response) {
     if (status === 'approved' && metadata?.appointment) {
       const appointment = metadata.appointment as AppointmentDraft;
       try {
-        const created = await createAppointment(appointment);
+        const appointmentToCreate = {
+          ...appointment,
+          startTime: new Date(appointment.startTime),
+        };
+        const created = await createAppointment(appointmentToCreate);
         await markAppointmentPayment(created.id, {
           method: methodId === 'pix' ? 'pix' : 'cartao',
           status: 'approved',
