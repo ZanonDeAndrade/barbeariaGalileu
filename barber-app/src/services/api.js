@@ -1,4 +1,11 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000/api';
+const resolveDefaultApiBaseUrl = () => {
+    if (typeof window === 'undefined') {
+        return 'http://localhost:4000/api';
+    }
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:4000/api`;
+};
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? resolveDefaultApiBaseUrl();
 export class ApiError extends Error {
     constructor(status, message, details) {
         super(message);

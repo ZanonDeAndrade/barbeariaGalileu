@@ -2,7 +2,8 @@ import { format } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEventHandler } from 'react';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
-import { api, ApiError } from '../services/api';
+import Pagamento from '../components/Pagamento';
+import { api } from '../services/api';
 import type {
   CreateAppointmentPayload,
   HaircutOption,
@@ -23,6 +24,8 @@ function CustomerBooking() {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
+  const [appointmentDraft, setAppointmentDraft] = useState<CreateAppointmentPayload | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const isProgrammaticPickerOpen = useRef(false);
 
@@ -116,7 +119,7 @@ function CustomerBooking() {
     openNativeDatePicker();
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selectedSlot || !selectedHaircut) {
       return;
@@ -132,34 +135,38 @@ function CustomerBooking() {
 
     setSubmitting(true);
     setFeedback(null);
+    setAppointmentDraft(payload);
+    setShowPayment(true);
+  };
 
+  const handleClosePayment = () => {
+    setShowPayment(false);
+    setAppointmentDraft(null);
+    setSubmitting(false);
+  };
+
+  const handlePaymentSuccess = async ({ appointmentId, status }: { appointmentId?: string; status: string }) => {
     try {
-      await api.createAppointment(payload);
+      const message =
+        status === 'approved'
+          ? 'Pagamento aprovado e agendamento confirmado!'
+          : 'Agendamento registrado. Pagamento pendente na barbearia.';
+
       setFeedback({
         type: 'success',
-        message: 'Agendamento confirmado! Você receberá o atendimento no horário escolhido.',
+        message,
       });
       setCustomerName('');
       setCustomerPhone('');
       setNotes('');
       setSelectedSlot(undefined);
+
+      handleClosePayment();
+
       const updated = await api.getAvailability(selectedDate);
       setAvailability(updated);
     } catch (error) {
       console.error(error);
-      if (error instanceof ApiError) {
-        setFeedback({
-          type: 'error',
-          message: error.message,
-        });
-      } else {
-        setFeedback({
-          type: 'error',
-          message: 'Não foi possível concluir o agendamento. Tente novamente.',
-        });
-      }
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -213,11 +220,7 @@ function CustomerBooking() {
               <div className="status-banner">Carregando horários...</div>
             ) : (
               <>
-                <AvailabilityGrid
-                  slots={availability}
-                  selectedSlot={selectedSlot}
-                  onSelect={setSelectedSlot}
-                />
+                <AvailabilityGrid slots={availability} selectedSlot={selectedSlot} onSelect={setSelectedSlot} />
               </>
             )}
           </div>
@@ -237,9 +240,7 @@ function CustomerBooking() {
             </label>
           </div>
 
-          {feedback && (
-            <div className={`status-banner ${feedback.type}`}>{feedback.message}</div>
-          )}
+          {feedback && <div className={`status-banner ${feedback.type}`}>{feedback.message}</div>}
 
           <div>
             <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
@@ -247,9 +248,21 @@ function CustomerBooking() {
             </button>
           </div>
         </form>
+
+        {showPayment && appointmentDraft && selectedHaircutDetail && (
+          <div style={{ marginTop: '1.5rem' }}>
+            <Pagamento
+              appointment={appointmentDraft}
+              haircut={selectedHaircutDetail}
+              onClose={handleClosePayment}
+              onSuccess={handlePaymentSuccess}
+            />
+          </div>
+        )}
       </section>
     </div>
   );
 }
 
 export default CustomerBooking;
+
