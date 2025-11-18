@@ -27,7 +27,15 @@ export async function processCardPaymentHandler(req: Request, res: Response) {
     cardPayload: z.record(z.any()),
   });
 
-  const { amount, description, appointment, cardPayload } = schema.parse(req.body);
+  type ProcessCardPaymentInput = {
+    amount: number;
+    description: string;
+    appointment: AppointmentDraft;
+    cardPayload: Record<string, any>;
+  };
+
+  const { amount, description, appointment, cardPayload } =
+    schema.parse(req.body) as ProcessCardPaymentInput;
 
   const payment = await createCardPayment({ amount, description, appointment, cardPayload });
 
@@ -35,10 +43,9 @@ export async function processCardPaymentHandler(req: Request, res: Response) {
   const paymentId = (payment as any).id?.toString();
 
   if (status === 'approved') {
-    const appointmentDraft = appointment as AppointmentDraft;
     const appointmentToCreate = {
-      ...appointmentDraft,
-      startTime: new Date(appointmentDraft.startTime),
+      ...appointment,
+      startTime: new Date(appointment.startTime),
     };
     const created = await createAppointment(appointmentToCreate);
     await markAppointmentPayment(created.id, {
@@ -60,7 +67,15 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
     appointment: appointmentDraftSchema,
   });
 
-  const { amount, description, payer, appointment } = schema.parse(req.body);
+  type CreatePixPaymentInput = {
+    amount: number;
+    description: string;
+    payer: { email: string; first_name?: string };
+    appointment: AppointmentDraft;
+  };
+
+  const { amount, description, payer, appointment } =
+    schema.parse(req.body) as CreatePixPaymentInput;
 
   const payment = await createPixPayment({ amount, description, payer, appointment });
   const paymentId = (payment as any).id?.toString();
@@ -77,10 +92,9 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
 
 export async function createCashAppointmentHandler(req: Request, res: Response) {
   const appointment = appointmentDraftSchema.parse(req.body);
-  const appointmentDraft = appointment as AppointmentDraft;
   const appointmentToCreate = {
-    ...appointmentDraft,
-    startTime: new Date(appointmentDraft.startTime),
+    ...appointment,
+    startTime: new Date(appointment.startTime),
   };
   const created = await createAppointment(appointmentToCreate);
   await markAppointmentPayment(created.id, { method: 'dinheiro', status: 'pending' });
