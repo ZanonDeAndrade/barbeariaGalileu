@@ -24,10 +24,10 @@ function CustomerBooking() {
     useEffect(() => {
         async function fetchHaircuts() {
             try {
-                const data = await api.getHaircuts();
-                setHaircuts(data);
-                if (data.length > 0) {
-                    setSelectedHaircut(data[0].id);
+                const response = await api.get('/haircuts');
+                setHaircuts(response.data);
+                if (response.data.length > 0) {
+                    setSelectedHaircut(response.data[0].id);
                 }
             }
             catch (error) {
@@ -46,8 +46,10 @@ function CustomerBooking() {
             setFeedback(null);
             setSelectedSlot(undefined);
             try {
-                const slots = await api.getAvailability(selectedDate);
-                setAvailability(slots);
+                const slots = await api.get('/appointments/availability', {
+                    params: { date: selectedDate },
+                });
+                setAvailability(slots.data);
             }
             catch (error) {
                 console.error(error);
@@ -133,8 +135,10 @@ function CustomerBooking() {
             setNotes('');
             setSelectedSlot(undefined);
             handleClosePayment();
-            const updated = await api.getAvailability(selectedDate);
-            setAvailability(updated);
+            const updated = await api.get('/appointments/availability', {
+                params: { date: selectedDate },
+            });
+            setAvailability(updated.data);
         }
         catch (error) {
             console.error(error);

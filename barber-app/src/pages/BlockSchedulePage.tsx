@@ -2,7 +2,7 @@ import { format, parseISO } from 'date-fns';
 import { useEffect, useRef, useState } from 'react';
 import type { MouseEventHandler } from 'react';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
-import { api, ApiError } from '../services/api';
+import { api } from '../services/api';
 import type { BlockedSlot, SlotAvailability } from '../types';
 
 type BlockSchedulePageProps = {
@@ -30,11 +30,15 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
       setSelectedSlot(undefined);
       try {
         const [slots, blocks] = await Promise.all([
-          api.getAvailability(selectedDate),
-          api.listBlockedSlots(selectedDate),
+          api.get<SlotAvailability[]>('/appointments/availability', {
+            params: { date: selectedDate },
+          }),
+          api.get<BlockedSlot[]>('/blocked-slots', {
+            params: selectedDate ? { date: selectedDate } : undefined,
+          }),
         ]);
-        setAvailability(slots);
-        setBlockedSlots(blocks);
+        setAvailability(slots.data);
+        setBlockedSlots(blocks.data);
       } catch (error) {
         console.error(error);
         setAvailability([]);
@@ -55,11 +59,15 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
 
   const refreshDailyData = async () => {
     const [slots, blocks] = await Promise.all([
-      api.getAvailability(selectedDate),
-      api.listBlockedSlots(selectedDate),
+      api.get<SlotAvailability[]>('/appointments/availability', {
+        params: { date: selectedDate },
+      }),
+      api.get<BlockedSlot[]>('/blocked-slots', {
+        params: selectedDate ? { date: selectedDate } : undefined,
+      }),
     ]);
-    setAvailability(slots);
-    setBlockedSlots(blocks);
+    setAvailability(slots.data);
+    setBlockedSlots(blocks.data);
   };
 
   const handleBlockSlot = async () => {
@@ -69,7 +77,7 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
 
     setFeedback(null);
     try {
-      await api.createBlockedSlot({
+      await api.post('/blocked-slots', {
         startTime: selectedSlot,
         reason: blockReason.trim() || undefined,
       });
@@ -82,18 +90,17 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
       await refreshDailyData();
     } catch (error) {
       console.error(error);
-      if (error instanceof ApiError) {
-        setFeedback({ type: 'error', message: error.message });
-      } else {
-        setFeedback({ type: 'error', message: 'Não foi possível bloquear o horário.' });
-      }
+      const message =
+        (error as any)?.response?.data?.message ??
+        (error instanceof Error ? error.message : 'Não foi possível bloquear o horário.');
+      setFeedback({ type: 'error', message });
     }
   };
 
   const handleRemoveBlockedSlot = async (id: string) => {
     setFeedback(null);
     try {
-      await api.removeBlockedSlot(id);
+      await api.delete(`/blocked-slots/${id}`);
       setFeedback({
         type: 'success',
         message: 'Bloqueio removido.',
