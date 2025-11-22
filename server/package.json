@@ -2,11 +2,11 @@
   "name": "barbearia-galileu-server",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc --project tsconfig.json",
     "start": "node dist/index.js",
+    "postinstall": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate"
   },
