@@ -16,11 +16,11 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }) {
             setFeedback(null);
             try {
                 const [haircutList, appointmentList] = await Promise.all([
-                    api.getHaircuts(),
-                    api.listAppointments(),
+                    api.get('/haircuts'),
+                    api.get('/appointments'),
                 ]);
-                setHaircuts(haircutList);
-                setAppointments(appointmentList);
+                setHaircuts(haircutList.data);
+                setAppointments(appointmentList.data);
             }
             catch (error) {
                 console.error(error);
