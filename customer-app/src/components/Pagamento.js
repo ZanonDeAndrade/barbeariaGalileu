@@ -105,10 +105,17 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
         };
         render();
         return () => {
-            var _a;
-            if (((_a = brickRef.current) === null || _a === void 0 ? void 0 : _a.unmount) && typeof brickRef.current.unmount === 'function') {
+            if (brickRef.current && typeof brickRef.current.unmount === 'function') {
                 brickRef.current.unmount();
                 brickRef.current = null;
+            }
+            else {
+                try {
+                    bricksBuilder.unmount('payment_brick_container');
+                }
+                catch {
+                    // ignore
+                }
             }
         };
     }, [metodo, amount, mpReady]);
@@ -149,6 +156,15 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
             setLoading(false);
         }
     };
-    return (_jsxs("div", { className: "card", role: "dialog", "aria-modal": "true", children: [_jsx("div", { className: "section-title", children: "Pagamento" }), _jsxs("div", { className: "legend", style: { marginBottom: '1rem' }, children: [_jsx("button", { className: `btn ${metodo === 'cartao' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => setMetodo('cartao'), children: "Cart\u00E3o (cr\u00E9dito / d\u00E9bito)" }), _jsx("button", { className: `btn ${metodo === 'pix' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => setMetodo('pix'), children: "Pix" }), _jsx("button", { className: `btn ${metodo === 'dinheiro' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => setMetodo('dinheiro'), children: "Dinheiro" })] }), metodo === 'cartao' && (_jsxs("div", { style: { display: 'grid', gap: '0.75rem' }, children: [_jsx("small", { className: "form-helper", children: "Pagamento com cart\u00E3o de cr\u00E9dito ou d\u00E9bito de qualquer banco. Para cart\u00E3o virtual Caixa, use a op\u00E7\u00E3o de d\u00E9bito no formul\u00E1rio abaixo." }), _jsx("div", { id: "payment_brick_container" })] })), metodo === 'pix' && (_jsx("div", { children: !pix ? (_jsx("button", { className: "btn btn-primary", onClick: handlePix, disabled: loading, children: loading ? 'Gerando Pix...' : 'Gerar QR Code Pix' })) : (_jsxs("div", { style: { display: 'grid', gap: '1rem' }, children: [pix.img && (_jsx("img", { alt: "QR Code Pix", src: `data:image/png;base64,${pix.img}`, style: { width: 220, height: 220 } })), pix.qr && (_jsx("textarea", { readOnly: true, value: pix.qr, style: { width: '100%', height: 80 } }))] })) })), metodo === 'dinheiro' && (_jsxs("div", { children: [_jsx("div", { className: "status-banner", children: "Seu hor\u00E1rio ser\u00E1 reservado com pagamento pendente no caixa." }), _jsx("button", { className: "btn btn-primary", onClick: handleCash, disabled: loading, children: loading ? 'Confirmando...' : 'Confirmar em dinheiro' })] })), feedback && _jsx("div", { className: "status-banner", style: { marginTop: '1rem' }, children: feedback }), _jsx("div", { className: "inline-actions", style: { marginTop: '1rem' }, children: _jsx("button", { className: "btn btn-secondary", onClick: onClose, children: "Voltar" }) })] }));
+    return (_jsxs("div", { className: "card", role: "dialog", "aria-modal": "true", children: [_jsx("div", { className: "section-title", children: "Pagamento" }), _jsxs("div", { className: "legend", style: { marginBottom: '1rem' }, children: [_jsx("button", { className: `btn ${metodo === 'cartao' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
+                            setMetodo('cartao');
+                            setFeedback(null);
+                        }, children: "Cart\u00E3o (cr\u00E9dito / d\u00E9bito)" }), _jsx("button", { className: `btn ${metodo === 'pix' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
+                            setMetodo('pix');
+                            setFeedback(null);
+                        }, children: "Pix" }), _jsx("button", { className: `btn ${metodo === 'dinheiro' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
+                            setMetodo('dinheiro');
+                            setFeedback(null);
+                        }, children: "Dinheiro" })] }), metodo === 'cartao' && (_jsxs("div", { style: { display: 'grid', gap: '0.75rem' }, children: [_jsx("small", { className: "form-helper", children: "Pagamento com cart\u00E3o de cr\u00E9dito ou d\u00E9bito de qualquer banco. Para cart\u00E3o virtual Caixa, use a op\u00E7\u00E3o de d\u00E9bito no formul\u00E1rio abaixo." }), _jsx("div", { id: "payment_brick_container" })] })), metodo === 'pix' && (_jsx("div", { children: !pix ? (_jsx("button", { className: "btn btn-primary", onClick: handlePix, disabled: loading, children: loading ? 'Gerando Pix...' : 'Gerar QR Code Pix' })) : (_jsxs("div", { style: { display: 'grid', gap: '1rem' }, children: [pix.img && (_jsx("img", { alt: "QR Code Pix", src: `data:image/png;base64,${pix.img}`, style: { width: 220, height: 220 } })), pix.qr && (_jsx("textarea", { readOnly: true, value: pix.qr, style: { width: '100%', height: 80 } }))] })) })), metodo === 'dinheiro' && (_jsxs("div", { children: [_jsx("div", { className: "status-banner", children: "Seu hor\u00E1rio ser\u00E1 reservado com pagamento pendente no caixa." }), _jsx("button", { className: "btn btn-primary", onClick: handleCash, disabled: loading, children: loading ? 'Confirmando...' : 'Confirmar em dinheiro' })] })), feedback && _jsx("div", { className: "status-banner", style: { marginTop: '1rem' }, children: feedback }), _jsx("div", { className: "inline-actions", style: { marginTop: '1rem' }, children: _jsx("button", { className: "btn btn-secondary", onClick: onClose, children: "Voltar" }) })] }));
 }
 export default Pagamento;
