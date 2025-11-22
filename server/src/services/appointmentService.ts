@@ -14,8 +14,8 @@ const createAppointmentSchema = z.object({
   customerName: z.string().min(3, 'Informe o nome completo'),
   customerPhone: z.string().min(8, 'Telefone inválido'),
   haircutType: z.string(),
-  startTime: z.string().transform((value) => {
-    const parsed = parseISO(value);
+  startTime: z.union([z.string(), z.date()]).transform((value) => {
+    const parsed = value instanceof Date ? value : parseISO(value);
     if (Number.isNaN(parsed.getTime())) {
       throw new z.ZodError([
         {
