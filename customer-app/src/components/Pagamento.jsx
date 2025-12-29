@@ -1,31 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CreateAppointmentPayload, HaircutOption } from '../types';
 import { paymentsApi } from '../services/payments';
 
-declare global {
-  interface Window {
-    MercadoPago: any;
-  }
-}
-
-type Metodo = 'cartao' | 'pix' | 'dinheiro';
-
-type PagamentoProps = {
-  appointment: CreateAppointmentPayload;
-  haircut?: HaircutOption | null; // para obter valor
-  onClose: () => void;
-  onSuccess: (info: { appointmentId?: string; status: string }) => void;
-};
-
-export function Pagamento({ appointment, haircut, onClose, onSuccess }: PagamentoProps) {
-  const [metodo, setMetodo] = useState<Metodo>('cartao');
+export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
+  const [metodo, setMetodo] = useState('cartao');
   const [loading, setLoading] = useState(false);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [pix, setPix] = useState<{ qr?: string; img?: string; mpPaymentId?: string } | null>(null);
+  const [feedback, setFeedback] = useState(null);
+  const [pix, setPix] = useState(null);
   const [pixRequested, setPixRequested] = useState(false);
-  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const [copyState, setCopyState] = useState('idle');
   const [mpReady, setMpReady] = useState(false);
-  const brickRef = useRef<any>(null);
+  const brickRef = useRef(null);
 
   const amount = useMemo(() => {
     return haircut ? Math.max(1, Math.round(haircut.priceCents) / 100) : 1;
@@ -33,16 +17,14 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
 
   // carrega SDK do Mercado Pago on-demand
   useEffect(() => {
-    const existing = document.querySelector("script[src='https://sdk.mercadopago.com/js/v2']") as HTMLScriptElement | null;
+    const existing = document.querySelector("script[src='https://sdk.mercadopago.com/js/v2']");
     if (existing) {
       if (window.MercadoPago) {
         setMpReady(true);
       } else {
         const onLoad = () => setMpReady(true);
         existing.addEventListener('load', onLoad);
-        return () => {
-          existing.removeEventListener('load', onLoad);
-        };
+        return () => existing.removeEventListener('load', onLoad);
       }
       return;
     }
@@ -54,37 +36,30 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
     document.body.appendChild(s);
     return () => {
       s.removeEventListener('load', onLoad);
-      if (s && s.parentElement) s.parentElement.removeChild(s);
+      if (s.parentElement) s.parentElement.removeChild(s);
     };
   }, []);
 
-  // inicializa o Payment Brick quando selecionar cartão
+  // inicializa o Payment Brick quando selecionar cartao
   useEffect(() => {
     if (metodo !== 'cartao') return;
     if (!mpReady || !window.MercadoPago) return;
-    const publicKey = (import.meta as any).env.VITE_MP_PUBLIC_KEY || (window as any).MP_PUBLIC_KEY;
+    const publicKey = import.meta.env.VITE_MP_PUBLIC_KEY || window.MP_PUBLIC_KEY;
     if (!publicKey) return;
     const mp = new window.MercadoPago(publicKey, { locale: 'pt-BR' });
     const bricksBuilder = mp.bricks();
 
     const render = async () => {
       const settings = {
-        initialization: {
-          amount,
-        },
-        customization: {
-          paymentMethods: {
-            creditCard: 'all',
-            debitCard: 'all',
-          },
-        },
+        initialization: { amount },
+        customization: { paymentMethods: { creditCard: 'all', debitCard: 'all' } },
         callbacks: {
           onReady: () => {},
-          onError: (error: any) => {
+          onError: (error) => {
             console.error('Payment Brick error:', error);
             setFeedback('Erro ao carregar formulário de pagamento.');
           },
-          onSubmit: async ({ formData }: { formData: any }) => {
+          onSubmit: async ({ formData }) => {
             try {
               setFeedback(null);
               setLoading(true);
@@ -107,7 +82,7 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
             }
           },
         },
-      } as any;
+      };
       try {
         const controller = await bricksBuilder.create('payment', 'payment_brick_container', settings);
         brickRef.current = controller;
@@ -176,7 +151,7 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
   };
 
   const handleCopyPix = async () => {
-    if (!pix?.qr) return;
+    if (!(pix && pix.qr)) return;
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(pix.qr);
@@ -212,7 +187,7 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
             setPixRequested(false);
           }}
         >
-          Cartão
+          Cartao
         </button>
         <button
           type="button"
@@ -244,8 +219,8 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
       {metodo === 'cartao' && (
         <div style={{ display: 'grid', gap: '0.75rem', overflow: 'hidden', minWidth: 0 }}>
           <small className="form-helper">
-            Pagamento com cartão de crédito ou débito de qualquer banco. Para cartão virtual Caixa, use a opção de débito
-            no formulário abaixo.
+            Pagamento com cartao de credito ou debito de qualquer banco. Para cartao virtual Caixa, use a opcao de debito
+            no formulario abaixo.
           </small>
           <div className="payment-brick-wrapper">
             <div id="payment_brick_container" />
@@ -255,9 +230,7 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }: Pagament
 
       {metodo === 'pix' && (
         <div style={{ display: 'grid', gap: '0.75rem' }}>
-          {!pix && (
-            <div className="status-banner">{loading ? 'Gerando Pix...' : 'Gerando QR Code Pix...'}</div>
-          )}
+          {!pix && <div className="status-banner">{loading ? 'Gerando Pix...' : 'Gerando QR Code Pix...'}</div>}
 
           {pix?.img && (
             <div style={{ display: 'flex', justifyContent: 'center' }}>

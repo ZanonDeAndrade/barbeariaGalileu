@@ -205,9 +205,12 @@ a {
 }
 
 .card.card--dark .slot-button.booked {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: var(--color-text-muted);
+  background: #ffffff;
+  border-color: #d0d0d0;
+  color: #111111;
+}
+.card.card--dark .slot-button.booked small {
+  color: #111111;
 }
 
 .card.card--dark .slot-button.blocked {
@@ -571,9 +574,12 @@ button {
 }
 
 .slot-button.booked {
-  background: var(--color-border);
-  border-color: var(--color-border);
-  color: var(--color-text-soft);
+  background: #ffffff;
+  border-color: #d0d0d0;
+  color: #111111;
+}
+.slot-button.booked small {
+  color: #111111;
 }
 
 .slot-button.blocked {
@@ -843,12 +849,30 @@ button {
   color: #111111;
 }
 
+/* --- Payment Brick (Mercado Pago) - base --- */
+.payment-brick-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#payment_brick_container {
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 /* --- Payment Brick (Mercado Pago) contraste em card escuro --- */
 .card.card--dark #payment_brick_container {
   background: #ffffff;
   color: #111111;
   border-radius: 12px;
-  padding: 1rem;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .card.card--dark #payment_brick_container * {

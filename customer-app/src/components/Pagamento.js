@@ -6,6 +6,8 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
     const [loading, setLoading] = useState(false);
     const [feedback, setFeedback] = useState(null);
     const [pix, setPix] = useState(null);
+    const [pixRequested, setPixRequested] = useState(false);
+    const [copyState, setCopyState] = useState('idle');
     const [mpReady, setMpReady] = useState(false);
     const brickRef = useRef(null);
     const amount = useMemo(() => {
@@ -123,6 +125,7 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
         try {
             setLoading(true);
             setFeedback(null);
+            setCopyState('idle');
             const payerEmail = `${appointment.customerPhone.replace(/\D/g, '')}@example.com`;
             const result = await paymentsApi.createPix({
                 amount,
@@ -141,6 +144,14 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
             setLoading(false);
         }
     };
+    useEffect(() => {
+        if (metodo !== 'pix')
+            return;
+        if (pix || loading || pixRequested)
+            return;
+        setPixRequested(true);
+        handlePix();
+    }, [metodo, pix, loading, pixRequested]);
     const handleCash = async () => {
         try {
             setLoading(true);
@@ -156,15 +167,51 @@ export function Pagamento({ appointment, haircut, onClose, onSuccess }) {
             setLoading(false);
         }
     };
-    return (_jsxs("div", { className: "card", role: "dialog", "aria-modal": "true", children: [_jsx("div", { className: "section-title", children: "Pagamento" }), _jsxs("div", { className: "legend", style: { marginBottom: '1rem' }, children: [_jsx("button", { className: `btn ${metodo === 'cartao' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
+    const handleCopyPix = async () => {
+        if (!pix?.qr)
+            return;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(pix.qr);
+            }
+            else {
+                const helper = document.createElement('textarea');
+                helper.value = pix.qr;
+                helper.style.position = 'fixed';
+                helper.style.opacity = '0';
+                document.body.appendChild(helper);
+                helper.select();
+                document.execCommand('copy');
+                document.body.removeChild(helper);
+            }
+            setCopyState('copied');
+            setTimeout(() => setCopyState('idle'), 2000);
+        }
+        catch (error) {
+            console.error(error);
+            setCopyState('error');
+        }
+    };
+    return (_jsxs("div", { className: "card", role: "dialog", "aria-modal": "true", children: [_jsx("div", { className: "section-title", children: "Pagamento" }), _jsxs("div", { className: "legend", style: { marginBottom: '1rem' }, children: [_jsx("button", { type: "button", className: `btn ${metodo === 'cartao' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
                             setMetodo('cartao');
                             setFeedback(null);
-                        }, children: "Cart\u00E3o (cr\u00E9dito / d\u00E9bito)" }), _jsx("button", { className: `btn ${metodo === 'pix' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
+                            setCopyState('idle');
+                            setPixRequested(false);
+                        }, children: "Cart\u00E3o" }), _jsx("button", { type: "button", className: `btn ${metodo === 'pix' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
                             setMetodo('pix');
                             setFeedback(null);
-                        }, children: "Pix" }), _jsx("button", { className: `btn ${metodo === 'dinheiro' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
+                            setPix(null);
+                            setPixRequested(false);
+                            setCopyState('idle');
+                        }, children: "Pix" }), _jsx("button", { type: "button", className: `btn ${metodo === 'dinheiro' ? 'btn-primary' : 'btn-secondary'}`, onClick: () => {
                             setMetodo('dinheiro');
                             setFeedback(null);
-                        }, children: "Dinheiro" })] }), metodo === 'cartao' && (_jsxs("div", { style: { display: 'grid', gap: '0.75rem' }, children: [_jsx("small", { className: "form-helper", children: "Pagamento com cart\u00E3o de cr\u00E9dito ou d\u00E9bito de qualquer banco. Para cart\u00E3o virtual Caixa, use a op\u00E7\u00E3o de d\u00E9bito no formul\u00E1rio abaixo." }), _jsx("div", { id: "payment_brick_container" })] })), metodo === 'pix' && (_jsx("div", { children: !pix ? (_jsx("button", { className: "btn btn-primary", onClick: handlePix, disabled: loading, children: loading ? 'Gerando Pix...' : 'Gerar QR Code Pix' })) : (_jsxs("div", { style: { display: 'grid', gap: '1rem' }, children: [pix.img && (_jsx("img", { alt: "QR Code Pix", src: `data:image/png;base64,${pix.img}`, style: { width: 220, height: 220 } })), pix.qr && (_jsx("textarea", { readOnly: true, value: pix.qr, style: { width: '100%', height: 80 } }))] })) })), metodo === 'dinheiro' && (_jsxs("div", { children: [_jsx("div", { className: "status-banner", children: "Seu hor\u00E1rio ser\u00E1 reservado com pagamento pendente no caixa." }), _jsx("button", { className: "btn btn-primary", onClick: handleCash, disabled: loading, children: loading ? 'Confirmando...' : 'Confirmar em dinheiro' })] })), feedback && _jsx("div", { className: "status-banner", style: { marginTop: '1rem' }, children: feedback }), _jsx("div", { className: "inline-actions", style: { marginTop: '1rem' }, children: _jsx("button", { className: "btn btn-secondary", onClick: onClose, children: "Voltar" }) })] }));
+                            setCopyState('idle');
+                            setPixRequested(false);
+                        }, children: "Dinheiro" })] }), metodo === 'cartao' && (_jsxs("div", { style: { display: 'grid', gap: '0.75rem', overflow: 'hidden', minWidth: 0 }, children: [_jsx("small", { className: "form-helper", children: "Pagamento com cart\u00E3o de cr\u00E9dito ou d\u00E9bito de qualquer banco. Para cart\u00E3o virtual Caixa, use a op\u00E7\u00E3o de d\u00E9bito no formul\u00E1rio abaixo." }), _jsx("div", { className: "payment-brick-wrapper", children: _jsx("div", { id: "payment_brick_container" }) })] })), metodo === 'pix' && (_jsxs("div", { style: { display: 'grid', gap: '0.75rem' }, children: [!pix && (_jsx("div", { className: "status-banner", children: loading ? 'Gerando Pix...' : 'Gerando QR Code Pix...' })), pix?.img && (_jsx("div", { style: { display: 'flex', justifyContent: 'center' }, children: _jsx("img", { alt: "QR Code Pix", src: `data:image/png;base64,${pix.img}`, style: { width: 180, height: 180, borderRadius: 8 } }) })), pix?.qr && (_jsxs("div", { style: { display: 'grid', gap: '0.5rem', maxWidth: 360, margin: '0 auto', width: '100%' }, children: [_jsx("textarea", { readOnly: true, value: pix.qr, style: { width: '100%', height: 80, textAlign: 'center', fontSize: '0.9rem' } }), _jsx("button", { className: "btn btn-secondary", onClick: handleCopyPix, type: "button", children: copyState === 'copied'
+                                    ? 'Chave Pix copiada'
+                                    : copyState === 'error'
+                                        ? 'Tente copiar novamente'
+                                        : 'Copiar chave Pix' })] }))] })), metodo === 'dinheiro' && (_jsxs("div", { style: { display: 'grid', gap: '0.75rem' }, children: [_jsx("div", { className: "status-banner", children: "Seu hor\u00E1rio ser\u00E1 reservado com pagamento pendente no caixa." }), _jsx("button", { className: "btn btn-primary", onClick: handleCash, disabled: loading, style: { marginTop: '0.25rem' }, children: loading ? 'Confirmando...' : 'Confirmar em dinheiro' })] })), feedback && _jsx("div", { className: "status-banner", style: { marginTop: '1rem' }, children: feedback }), _jsx("div", { className: "inline-actions", style: { marginTop: '1rem' }, children: _jsx("button", { className: "btn btn-secondary", onClick: onClose, children: "Voltar" }) })] }));
 }
 export default Pagamento;
