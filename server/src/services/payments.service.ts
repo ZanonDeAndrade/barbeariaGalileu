@@ -50,6 +50,7 @@ export async function createCardPayment(params: {
   amount: number;
   description: string;
   appointment: AppointmentDraft;
+  appointmentId: string;
   // Dados crus vindos do Payment Brick (token, method, issuer, installments, payer...)
   cardPayload: Record<string, any>;
 }) {
@@ -61,6 +62,7 @@ export async function createCardPayment(params: {
     description: params.description,
     ...params.cardPayload,
     metadata: {
+      appointmentId: params.appointmentId,
       appointment: params.appointment,
     },
     notification_url: process.env.MP_WEBHOOK_URL || undefined,

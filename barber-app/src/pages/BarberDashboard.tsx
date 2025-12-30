@@ -19,31 +19,60 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
   const [feedback, setFeedback] = useState<{ type: 'error'; message: string } | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const isProgrammaticPickerOpen = useRef(false);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
-    async function fetchInitialData() {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const fetchHaircuts = async () => {
+    try {
+      const haircutList = await api.get<HaircutOption[]>('/haircuts');
+      if (!isMountedRef.current) return;
+      setHaircuts(haircutList.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const fetchAppointments = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent ?? false;
+    if (!silent) {
       setLoadingAppointments(true);
       setFeedback(null);
+    }
 
-      try {
-        const [haircutList, appointmentList] = await Promise.all([
-          api.get<HaircutOption[]>('/haircuts'),
-          api.get<Appointment[]>('/appointments'),
-        ]);
-        setHaircuts(haircutList.data);
-        setAppointments(appointmentList.data);
-      } catch (error) {
-        console.error(error);
+    try {
+      const appointmentList = await api.get<Appointment[]>('/appointments');
+      if (!isMountedRef.current) return;
+      setAppointments(appointmentList.data);
+    } catch (error) {
+      console.error(error);
+      if (!silent && isMountedRef.current) {
         setFeedback({
           type: 'error',
           message: 'Falha ao carregar os agendamentos.',
         });
-      } finally {
+      }
+    } finally {
+      if (!silent && isMountedRef.current) {
         setLoadingAppointments(false);
       }
     }
+  };
 
-    fetchInitialData();
+  useEffect(() => {
+    fetchHaircuts();
+    fetchAppointments();
+  }, []);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      fetchAppointments({ silent: true });
+    }, 15000);
+    return () => window.clearInterval(intervalId);
   }, []);
 
   const haircutMap = useMemo(
@@ -142,10 +171,22 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
       </section>
 
       <section className="card card--dark">
-        <div className="section-title">Agendamentos do dia</div>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-          Lista dos atendimentos confirmados para {readableSelectedDate}.
-        </p>
+        <div className="flex-between" style={{ alignItems: 'flex-start', gap: '0.75rem' }}>
+          <div>
+            <div className="section-title">Agendamentos do dia</div>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+              Lista dos atendimentos confirmados para {readableSelectedDate}.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => fetchAppointments()}
+            disabled={loadingAppointments}
+          >
+            Atualizar
+          </button>
+        </div>
 
         {loadingAppointments ? (
           <div className="status-banner" style={{ marginTop: '1rem' }}>
