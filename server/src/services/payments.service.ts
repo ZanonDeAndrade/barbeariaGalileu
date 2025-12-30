@@ -22,6 +22,7 @@ export async function createPixPayment(params: {
   description: string;
   payer: { email: string; first_name?: string };
   appointment: AppointmentDraft;
+  appointmentId: string;
 }) {
   const client = getMpClient();
   const payment = new Payment(client);
@@ -35,6 +36,7 @@ export async function createPixPayment(params: {
       first_name: params.payer.first_name ?? 'Cliente',
     },
     metadata: {
+      appointmentId: params.appointmentId,
       appointment: params.appointment,
     },
     notification_url: process.env.MP_WEBHOOK_URL || undefined,
