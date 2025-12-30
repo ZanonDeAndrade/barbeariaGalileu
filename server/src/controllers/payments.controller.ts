@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import {
   AppointmentDraft,
@@ -9,7 +9,6 @@ import {
 } from '../services/payments.service.js';
 import { createAppointment } from '../services/appointmentService.js';
 import { prisma } from '../config/prisma.js';
-import { parseISO } from 'date-fns';
 
 const appointmentDraftSchema = z.object({
   customerName: z.string().min(3),
@@ -77,13 +76,49 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
   const { amount, description, payer, appointment } =
     schema.parse(req.body) as CreatePixPaymentInput;
 
-  const payment = await createPixPayment({ amount, description, payer, appointment });
+  const appointmentToCreate = {
+    ...appointment,
+    startTime: new Date(appointment.startTime),
+  };
+
+  const created = await createAppointment(appointmentToCreate);
+  await markAppointmentPayment(created.id, { method: 'pix', status: 'pending' });
+
+  let payment: unknown;
+  try {
+    payment = await createPixPayment({
+      amount,
+      description,
+      payer,
+      appointment,
+      appointmentId: created.id,
+    });
+  } catch (error) {
+    await prisma.appointment.delete({ where: { id: created.id } }).catch(() => undefined);
+    throw error;
+  }
+
   const paymentId = (payment as any).id?.toString();
+  const mpStatus = (payment as any).status as string | undefined;
   const poi = (payment as any).point_of_interaction?.transaction_data || {};
 
-  return res.json({
-    status: (payment as any).status,
+  const normalizedStatus =
+    mpStatus === 'approved'
+      ? 'approved'
+      : mpStatus === 'rejected'
+        ? 'rejected'
+        : 'pending';
+
+  await markAppointmentPayment(created.id, {
+    method: 'pix',
+    status: normalizedStatus,
     mpPaymentId: paymentId,
+  });
+
+  return res.json({
+    status: mpStatus,
+    mpPaymentId: paymentId,
+    appointmentId: created.id,
     qr_code: poi.qr_code,
     qr_code_base64: poi.qr_code_base64,
     ticket_url: poi.ticket_url,
@@ -104,10 +139,13 @@ export async function createCashAppointmentHandler(req: Request, res: Response) 
 // Webhook de notificações do Mercado Pago
 export async function paymentWebhookHandler(req: Request, res: Response) {
   try {
-    const id =
-      (req.body?.data && (req.body as any).data.id) ||
-      (req.query && (req.query['data.id'] as string)) ||
-      (req.body?.id as string);
+    const rawId =
+      (req.body as any)?.data?.id ??
+      (req.query as any)?.['data.id'] ??
+      (req.query as any)?.id ??
+      (req.body as any)?.id;
+
+    const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
     if (!id) {
       return res.status(400).json({ message: 'payment id ausente' });
@@ -115,11 +153,36 @@ export async function paymentWebhookHandler(req: Request, res: Response) {
 
     const payment = await getPaymentById(id.toString());
     const status = (payment as any).status as string;
-    const metadata = (payment as any).metadata || {};
+    const paymentId = (payment as any).id?.toString();
     const methodId = (payment as any).payment_method_id as string | undefined;
+    const metadata = (payment as any).metadata || {};
 
-    if (status === 'approved' && metadata?.appointment) {
-      const appointment = metadata.appointment as AppointmentDraft;
+    const rawAppointmentId = (metadata as any)?.appointmentId;
+    const appointmentId =
+      typeof rawAppointmentId === 'string' ? rawAppointmentId : rawAppointmentId?.toString();
+
+    if (appointmentId) {
+      const normalizedStatus =
+        status === 'approved'
+          ? 'approved'
+          : status === 'rejected'
+            ? 'rejected'
+            : 'pending';
+
+      if (normalizedStatus !== 'pending') {
+        await markAppointmentPayment(appointmentId, {
+          method: methodId === 'pix' ? 'pix' : 'cartao',
+          status: normalizedStatus,
+          mpPaymentId: paymentId,
+        });
+      }
+
+      return res.status(204).send();
+    }
+
+    // Fallback (pagamentos antigos): metadata.appointment com o draft.
+    if (status === 'approved' && (metadata as any)?.appointment) {
+      const appointment = (metadata as any).appointment as AppointmentDraft;
       try {
         const appointmentToCreate = {
           ...appointment,
@@ -129,19 +192,21 @@ export async function paymentWebhookHandler(req: Request, res: Response) {
         await markAppointmentPayment(created.id, {
           method: methodId === 'pix' ? 'pix' : 'cartao',
           status: 'approved',
-          mpPaymentId: (payment as any).id?.toString(),
+          mpPaymentId: paymentId,
         });
-      } catch (err) {
-        // Caso o horário já tenha sido confirmado por outra notificação, apenas atualiza pagamento
-        const existing = await prisma.appointment.findFirst({
-          where: { startTime: parseISO(appointment.startTime) },
-        });
-        if (existing) {
-          await markAppointmentPayment(existing.id, {
-            method: methodId === 'pix' ? 'pix' : 'cartao',
-            status: 'approved',
-            mpPaymentId: (payment as any).id?.toString(),
+      } catch (error) {
+        // Idempotência: se o agendamento já existir para esse paymentId, apenas garante o status.
+        if (paymentId) {
+          const existingByPayment = await prisma.appointment.findUnique({
+            where: { mpPaymentId: paymentId },
           });
+          if (existingByPayment) {
+            await markAppointmentPayment(existingByPayment.id, {
+              method: methodId === 'pix' ? 'pix' : 'cartao',
+              status: 'approved',
+              mpPaymentId: paymentId,
+            });
+          }
         }
       }
     }
