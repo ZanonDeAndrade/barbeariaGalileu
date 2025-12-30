@@ -36,26 +36,53 @@ export async function processCardPaymentHandler(req: Request, res: Response) {
   const { amount, description, appointment, cardPayload } =
     schema.parse(req.body) as ProcessCardPaymentInput;
 
-  const payment = await createCardPayment({ amount, description, appointment, cardPayload });
+  const appointmentToCreate = {
+    ...appointment,
+    startTime: new Date(appointment.startTime),
+  };
 
-  const status = (payment as any).status as string;
-  const paymentId = (payment as any).id?.toString();
+  const created = await createAppointment(appointmentToCreate);
+  await markAppointmentPayment(created.id, { method: 'cartao', status: 'pending' });
 
-  if (status === 'approved') {
-    const appointmentToCreate = {
-      ...appointment,
-      startTime: new Date(appointment.startTime),
-    };
-    const created = await createAppointment(appointmentToCreate);
-    await markAppointmentPayment(created.id, {
-      method: 'cartao',
-      status: 'approved',
-      mpPaymentId: paymentId,
+  let payment: unknown;
+  try {
+    payment = await createCardPayment({
+      amount,
+      description,
+      appointment,
+      appointmentId: created.id,
+      cardPayload,
     });
-    return res.json({ status, mpPaymentId: paymentId, appointmentId: created.id });
+  } catch (error) {
+    await prisma.appointment.delete({ where: { id: created.id } }).catch(() => undefined);
+    throw error;
   }
 
-  return res.json({ status, mpPaymentId: paymentId });
+  const paymentId = (payment as any).id?.toString();
+  const mpStatus = (payment as any).status as string | undefined;
+
+  const normalizedStatus =
+    mpStatus === 'approved'
+      ? 'approved'
+      : mpStatus === 'rejected' ||
+          mpStatus === 'cancelled' ||
+          mpStatus === 'refunded' ||
+          mpStatus === 'charged_back'
+        ? 'rejected'
+        : 'pending';
+
+  if (normalizedStatus === 'rejected') {
+    await prisma.appointment.delete({ where: { id: created.id } }).catch(() => undefined);
+    return res.json({ status: mpStatus, mpPaymentId: paymentId });
+  }
+
+  await markAppointmentPayment(created.id, {
+    method: 'cartao',
+    status: normalizedStatus,
+    mpPaymentId: paymentId,
+  });
+
+  return res.json({ status: mpStatus, mpPaymentId: paymentId, appointmentId: created.id });
 }
 
 export async function createPixPaymentHandler(req: Request, res: Response) {
@@ -165,16 +192,22 @@ export async function paymentWebhookHandler(req: Request, res: Response) {
       const normalizedStatus =
         status === 'approved'
           ? 'approved'
-          : status === 'rejected'
+          : status === 'rejected' ||
+              status === 'cancelled' ||
+              status === 'refunded' ||
+              status === 'charged_back'
             ? 'rejected'
             : 'pending';
 
       if (normalizedStatus !== 'pending') {
-        await markAppointmentPayment(appointmentId, {
-          method: methodId === 'pix' ? 'pix' : 'cartao',
-          status: normalizedStatus,
-          mpPaymentId: paymentId,
-        });
+        const method = methodId === 'pix' ? 'pix' : 'cartao';
+
+        if (normalizedStatus === 'rejected' && method === 'cartao') {
+          await prisma.appointment.delete({ where: { id: appointmentId } }).catch(() => undefined);
+          return res.status(204).send();
+        }
+
+        await markAppointmentPayment(appointmentId, { method, status: normalizedStatus, mpPaymentId: paymentId });
       }
 
       return res.status(204).send();
@@ -217,4 +250,3 @@ export async function paymentWebhookHandler(req: Request, res: Response) {
     return res.status(500).json({ message: 'Erro no webhook' });
   }
 }
-
