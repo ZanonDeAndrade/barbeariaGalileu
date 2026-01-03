@@ -20,8 +20,13 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const isProgrammaticPickerOpen = useRef(false);
   const isMountedRef = useRef(true);
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
@@ -98,6 +103,50 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
       return '--/--/----';
     }
   }, [selectedDate]);
+
+  const statusLabel = (status: Appointment['status']) => {
+    switch (status) {
+      case 'CONFIRMED':
+        return 'Confirmado';
+      case 'CANCELLED':
+        return 'Cancelado';
+      case 'SCHEDULED':
+      default:
+        return 'Agendado';
+    }
+  };
+
+  const openCancelModal = (appointment: Appointment) => {
+    setCancelTarget(appointment);
+    setCancelReason('');
+    setCancelError(null);
+    setCancelSubmitting(false);
+  };
+
+  const closeCancelModal = () => {
+    if (cancelSubmitting) return;
+    setCancelTarget(null);
+    setCancelReason('');
+    setCancelError(null);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelSubmitting(true);
+    setCancelError(null);
+
+    try {
+      const reason = cancelReason.trim();
+      await api.patch(`/appointments/${cancelTarget.id}/cancel`, reason ? { reason } : {});
+      await fetchAppointments();
+      closeCancelModal();
+    } catch (error) {
+      console.error(error);
+      setCancelError('NÇœo foi possÇ­vel cancelar o agendamento.');
+    } finally {
+      setCancelSubmitting(false);
+    }
+  };
 
   const openNativeDatePicker = () => {
     const input = dateInputRef.current;
@@ -207,6 +256,8 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
                   <th>Telefone</th>
                   <th>Serviço</th>
                   <th>Pagamento</th>
+                  <th>Status</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -228,6 +279,26 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
                             }`
                           : '—'}
                       </td>
+                      <td data-label="Status">
+                        {statusLabel(appointment.status)}
+                        {appointment.status === 'CANCELLED' && appointment.cancelReason ? (
+                          <div style={{ marginTop: '0.25rem', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+                            Motivo: {appointment.cancelReason}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td data-label="Ações">
+                        <div className="inline-actions">
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => openCancelModal(appointment)}
+                            disabled={appointment.status === 'CANCELLED'}
+                          >
+                            {appointment.status === 'CANCELLED' ? 'Cancelado' : 'Cancelar'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -238,6 +309,50 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
       </section>
 
       {feedback && <div className={`status-banner ${feedback.type}`}>{feedback.message}</div>}
+
+      {cancelTarget && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="card modal-card">
+            <div className="section-title">Cancelar agendamento</div>
+            <p style={{ color: 'var(--color-text-muted)', marginTop: '0.5rem' }}>
+              {cancelTarget.customerName} em {format(parseISO(cancelTarget.startTime), 'dd/MM/yyyy')} Às{' '}
+              {format(parseISO(cancelTarget.startTime), 'HH:mm')}.
+            </p>
+
+            <div className="form-grid" style={{ marginTop: '1rem' }}>
+              <label>
+                Motivo (opcional)
+                <input
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Ex: cliente pediu para remarcar"
+                  disabled={cancelSubmitting}
+                />
+              </label>
+            </div>
+
+            {cancelError && (
+              <div className="status-banner error" style={{ marginTop: '1rem' }}>
+                {cancelError}
+              </div>
+            )}
+
+            <div className="inline-actions" style={{ marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeCancelModal}
+                disabled={cancelSubmitting}
+              >
+                Voltar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={confirmCancel} disabled={cancelSubmitting}>
+                {cancelSubmitting ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

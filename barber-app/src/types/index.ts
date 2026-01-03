@@ -12,6 +12,9 @@ export interface SlotAvailability {
   status: SlotStatus;
 }
 
+export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED';
+export type CancelledByRole = 'BARBER';
+
 export interface Appointment {
   id: string;
   customerName: string;
@@ -20,6 +23,10 @@ export interface Appointment {
   notes?: string | null;
   startTime: string;
   durationMinutes: number;
+  status: AppointmentStatus;
+  cancelledAt?: string | null;
+  cancelledByRole?: CancelledByRole | null;
+  cancelReason?: string | null;
   paymentMethod?: string | null;
   paymentStatus?: string | null;
   createdAt: string;

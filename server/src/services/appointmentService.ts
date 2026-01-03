@@ -1,5 +1,6 @@
 import { addMinutes, endOfDay, isBefore, parseISO, set, startOfDay } from 'date-fns';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
 import { getHaircutById, listHaircutOptions } from './haircutService.js';
@@ -56,6 +57,32 @@ export async function listAppointments() {
   return appointments;
 }
 
+export async function cancelAppointment(appointmentId: string, params: { reason?: string }) {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+  });
+
+  if (!appointment) {
+    throw new HttpError(404, 'Agendamento nÇœo encontrado');
+  }
+
+  if (appointment.status === 'CANCELLED') {
+    throw new HttpError(409, 'Agendamento jÇ­ estÇ­ cancelado');
+  }
+
+  const reason = params.reason?.trim();
+
+  return prisma.appointment.update({
+    where: { id: appointmentId },
+    data: {
+      status: 'CANCELLED',
+      cancelledAt: new Date(),
+      cancelledByRole: 'BARBER',
+      cancelReason: reason ? reason : null,
+    },
+  });
+}
+
 export async function listHaircuts() {
   return listHaircutOptions();
 }
@@ -82,16 +109,24 @@ export async function createAppointment(payload: CreateAppointmentInput) {
 
   await ensureSlotsAvailable(requiredSlots);
 
-  const appointment = await prisma.appointment.create({
-    data: {
-      customerName: data.customerName,
-      customerPhone: data.customerPhone,
-      haircutType: haircut.id,
-      notes: data.notes,
-      startTime: requiredSlots[0],
-      durationMinutes: haircut.durationMinutes,
-    },
-  });
+  let appointment;
+  try {
+    appointment = await prisma.appointment.create({
+      data: {
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        haircutType: haircut.id,
+        notes: data.notes,
+        startTime: requiredSlots[0],
+        durationMinutes: haircut.durationMinutes,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new HttpError(409, 'HorÇ­rio indisponÇðvel');
+    }
+    throw error;
+  }
 
   // Envia confirmação pelo WhatsApp sem bloquear a resposta da API.
   void notifyAppointmentConfirmation(appointment, haircut);
@@ -124,6 +159,9 @@ export async function getAvailability(dateISO: string | undefined): Promise<Slot
         startTime: {
           gte: dayStart,
           lte: dayEnd,
+        },
+        status: {
+          not: 'CANCELLED',
         },
       },
     }),
@@ -236,6 +274,9 @@ export async function ensureSlotsAvailable(slots: Date[]) {
         startTime: {
           gte: dayStart,
           lte: dayEnd,
+        },
+        status: {
+          not: 'CANCELLED',
         },
       },
     }),
