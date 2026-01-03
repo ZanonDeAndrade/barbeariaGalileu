@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
+import { z } from 'zod';
 import {
   createAppointment,
+  cancelAppointment,
   getAvailability,
   listAppointments,
   listHaircuts,
@@ -26,4 +28,20 @@ export const createAppointmentHandler = asyncHandler(async (req: Request, res: R
 export const listAppointmentsHandler = asyncHandler(async (_req: Request, res: Response) => {
   const appointments = await listAppointments();
   res.json(appointments);
+});
+
+export const cancelAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const bodySchema = z.object({
+    reason: z.string().max(280).optional(),
+  });
+
+  const { id } = paramsSchema.parse(req.params);
+  const { reason } = bodySchema.parse(req.body ?? {});
+
+  const appointment = await cancelAppointment(id, { reason });
+  res.json(appointment);
 });

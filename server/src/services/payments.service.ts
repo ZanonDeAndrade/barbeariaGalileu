@@ -1,4 +1,5 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 
 export function getMpClient() {
@@ -86,12 +87,26 @@ export async function markAppointmentPayment(appointmentId: string, data: {
   status: 'pending' | 'approved' | 'rejected';
   mpPaymentId?: string;
 }) {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+  });
+
+  if (!appointment) {
+    return;
+  }
+
+  const updateData: Prisma.AppointmentUpdateInput = {
+    paymentMethod: data.method,
+    paymentStatus: data.status,
+    mpPaymentId: data.mpPaymentId,
+  };
+
+  if (appointment.status !== 'CANCELLED' && data.status === 'approved') {
+    updateData.status = 'CONFIRMED';
+  }
+
   await prisma.appointment.update({
     where: { id: appointmentId },
-    data: {
-      paymentMethod: data.method,
-      paymentStatus: data.status,
-      mpPaymentId: data.mpPaymentId,
-    },
+    data: updateData,
   });
 }

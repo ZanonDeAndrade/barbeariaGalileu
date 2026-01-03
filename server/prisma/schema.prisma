@@ -14,14 +14,30 @@ model Appointment {
   customerPhone   String
   haircutType     String
   notes           String?
-  startTime       DateTime @unique
+  startTime       DateTime
   durationMinutes Int      @default(60)
+  status          AppointmentStatus @default(SCHEDULED)
+  cancelledAt     DateTime?
+  cancelledByRole CancelledByRole?
+  cancelReason    String?
   // Pagamentos
   paymentMethod   String?  // cartao | pix | dinheiro
   paymentStatus   String?  // pending | approved | rejected
   mpPaymentId     String?  @unique
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([status, startTime])
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CANCELLED
+}
+
+enum CancelledByRole {
+  BARBER
 }
 
 model BlockedSlot {
