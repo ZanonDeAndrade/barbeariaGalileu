@@ -46,3 +46,35 @@ model BlockedSlot {
   reason    String?
   createdAt DateTime @default(now())
 }
+
+model WebhookEvent {
+  id                      String                   @id @default(cuid())
+  provider                WebhookProvider
+  requestId               String                   @unique
+  receivedAt              DateTime                 @default(now())
+  method                  String
+  path                    String
+  query                   Json
+  headers                 Json
+  body                    Json
+  eventType               String
+  eventAction             String
+  relatedProviderPaymentId String?
+  processedAt             DateTime?
+  processingStatus        WebhookProcessingStatus  @default(FAILED)
+  errorMessage            String?
+
+  @@index([provider, receivedAt])
+  @@index([relatedProviderPaymentId])
+  @@unique([provider, relatedProviderPaymentId, eventAction])
+}
+
+enum WebhookProvider {
+  MERCADOPAGO
+}
+
+enum WebhookProcessingStatus {
+  SUCCESS
+  FAILED
+  IGNORED
+}
