@@ -2,9 +2,13 @@ import { Router } from 'express';
 import {
   createCashAppointmentHandler,
   createPixPaymentHandler,
-  paymentWebhookHandler,
   processCardPaymentHandler,
 } from '../controllers/payments.controller.js';
+import {
+  mercadoPagoSyncHandler,
+  mercadoPagoWebhookHandler,
+} from '../controllers/mercadopagoWebhookController.js';
+import { requireBarberKey } from '../middlewares/requireBarberKey.js';
 
 const router = Router();
 
@@ -18,7 +22,9 @@ router.post('/payment/pix', createPixPaymentHandler);
 router.post('/payment/cash', createCashAppointmentHandler);
 
 // Webhook Mercado Pago
-router.post('/webhook-pagamento', paymentWebhookHandler);
+router.post('/webhook-pagamento', mercadoPagoWebhookHandler);
+
+// Sync manual (quando webhook falhar)
+router.post('/barber/payments/:paymentId/sync', requireBarberKey, mercadoPagoSyncHandler);
 
 export default router;
-

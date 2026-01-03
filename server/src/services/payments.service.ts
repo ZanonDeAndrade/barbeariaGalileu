@@ -1,5 +1,5 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import type { Prisma } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 
 export function getMpClient() {
@@ -32,6 +32,7 @@ export async function createPixPayment(params: {
     transaction_amount: params.amount,
     description: params.description,
     payment_method_id: 'pix',
+    external_reference: params.appointmentId,
     payer: {
       email: params.payer.email,
       first_name: params.payer.first_name ?? 'Cliente',
@@ -62,6 +63,7 @@ export async function createCardPayment(params: {
     transaction_amount: params.amount,
     description: params.description,
     ...params.cardPayload,
+    external_reference: params.appointmentId,
     metadata: {
       appointmentId: params.appointmentId,
       appointment: params.appointment,
@@ -86,8 +88,8 @@ export async function markAppointmentPayment(appointmentId: string, data: {
   method: 'cartao' | 'pix' | 'dinheiro';
   status: 'pending' | 'approved' | 'rejected';
   mpPaymentId?: string;
-}) {
-  const appointment = await prisma.appointment.findUnique({
+}, prismaClient: PrismaClient = prisma) {
+  const appointment = await prismaClient.appointment.findUnique({
     where: { id: appointmentId },
   });
 
@@ -105,7 +107,7 @@ export async function markAppointmentPayment(appointmentId: string, data: {
     updateData.status = 'CONFIRMED';
   }
 
-  await prisma.appointment.update({
+  await prismaClient.appointment.update({
     where: { id: appointmentId },
     data: updateData,
   });
