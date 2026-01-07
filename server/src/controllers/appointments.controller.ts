@@ -1,10 +1,13 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { appointmentsByPhoneBodySchema } from '../schemas/appointments.schema.js';
 import {
-  createAppointment,
   cancelAppointment,
+  createAppointment,
   getAvailability,
   listAppointments,
+  listAppointmentsByPhone,
+  listCustomerAppointments,
   listHaircuts,
 } from '../services/appointmentService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -22,7 +25,15 @@ export const getAvailabilityHandler = asyncHandler(async (req: Request, res: Res
 
 export const createAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
   const appointment = await createAppointment(req.body);
-  res.status(201).json(appointment);
+
+  const appointments = appointment.customerId
+    ? await listCustomerAppointments(appointment.customerId)
+    : [];
+
+  res.status(201).json({
+    appointmentId: appointment.id,
+    appointments,
+  });
 });
 
 export const listAppointmentsHandler = asyncHandler(async (_req: Request, res: Response) => {
@@ -44,4 +55,11 @@ export const cancelAppointmentHandler = asyncHandler(async (req: Request, res: R
 
   const appointment = await cancelAppointment(id, { reason });
   res.json(appointment);
+});
+
+export const listAppointmentsByPhoneHandler = asyncHandler(async (req: Request, res: Response) => {
+  const { phone, limit } = appointmentsByPhoneBodySchema.parse(req.body ?? {});
+
+  const customerAppointments = await listAppointmentsByPhone(phone, { limit });
+  res.json({ appointments: customerAppointments });
 });

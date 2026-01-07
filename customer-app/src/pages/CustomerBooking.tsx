@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEventHandler } from 'react';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
+import { MyAppointments } from '../components/MyAppointments';
 import Pagamento from '../components/Pagamento';
 import { api } from '../services/api';
 import type {
@@ -13,6 +14,7 @@ import type {
 const today = format(new Date(), 'yyyy-MM-dd');
 
 function CustomerBooking() {
+  const [activeTab, setActiveTab] = useState<'booking' | 'my-appointments'>('booking');
   const [haircuts, setHaircuts] = useState<HaircutOption[]>([]);
   const [selectedHaircut, setSelectedHaircut] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(today);
@@ -51,6 +53,9 @@ function CustomerBooking() {
 
   useEffect(() => {
     async function fetchAvailability() {
+      if (activeTab !== 'booking') {
+        return;
+      }
       setLoadingAvailability(true);
       setFeedback(null);
       setSelectedSlot(undefined);
@@ -72,7 +77,7 @@ function CustomerBooking() {
     }
 
     fetchAvailability();
-  }, [selectedDate]);
+  }, [selectedDate, activeTab]);
 
   const selectedHaircutDetail = useMemo(
     () => haircuts.find((item) => item.id === selectedHaircut),
@@ -154,6 +159,14 @@ function CustomerBooking() {
           ? 'Pagamento aprovado e agendamento confirmado!'
           : 'Agendamento registrado. Pagamento pendente na barbearia.';
 
+      try {
+        const normalizedPhone = customerPhone.replace(/\D/g, '');
+        if (normalizedPhone.length >= 8) {
+          localStorage.setItem('customerPhone', normalizedPhone);
+        }
+      } catch {
+      }
+
       setFeedback({
         type: 'success',
         message,
@@ -164,6 +177,7 @@ function CustomerBooking() {
       setSelectedSlot(undefined);
 
       handleClosePayment();
+      setActiveTab('my-appointments');
 
       const updated = await api.get<SlotAvailability[]>('/appointments/availability', {
         params: { date: selectedDate },
@@ -181,10 +195,43 @@ function CustomerBooking() {
         <p className="page-subtitle">
           Escolha o estilo, a data e o horário que preferir. Preencha seus dados para garantir o atendimento.
         </p>
+
+        <div style={{ marginTop: '1.25rem' }}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => {
+              handleClosePayment();
+              if (activeTab === 'booking') {
+                try {
+                  const normalizedPhone = customerPhone.replace(/\D/g, '');
+                  if (normalizedPhone.length >= 8) {
+                    localStorage.setItem('customerPhone', normalizedPhone);
+                  }
+                } catch {
+                  // ignore
+                }
+                setActiveTab('my-appointments');
+              } else {
+                setActiveTab('booking');
+              }
+            }}
+          >
+            {activeTab === 'booking' ? 'Meus Agendamentos' : 'Voltar para agendar'}
+          </button>
+        </div>
       </section>
 
       <section className="card card--dark">
-        <form className="form-grid" onSubmit={handleSubmit}>
+        {feedback && (
+          <div className={`status-banner ${feedback.type}`} style={{ marginBottom: '1rem' }}>
+            {feedback.message}
+          </div>
+        )}
+
+        {activeTab === 'booking' ? (
+          <>
+            <form className="form-grid" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label>
               Tipo de corte
@@ -244,8 +291,6 @@ function CustomerBooking() {
             </label>
           </div>
 
-          {feedback && <div className={`status-banner ${feedback.type}`}>{feedback.message}</div>}
-
           <div>
             <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
               {submitting ? 'Enviando...' : 'Confirmar agendamento'}
@@ -263,10 +308,13 @@ function CustomerBooking() {
             />
           </div>
         )}
+          </>
+        ) : (
+          <MyAppointments haircuts={haircuts} />
+        )}
       </section>
     </div>
   );
 }
 
 export default CustomerBooking;
-
