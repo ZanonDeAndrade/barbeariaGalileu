@@ -3,13 +3,16 @@ import {
   cancelAppointmentHandler,
   createAppointmentHandler,
   getAvailabilityHandler,
+  listAppointmentsByPhoneHandler,
   listAppointmentsHandler,
-} from '../controllers/appointmentController.js';
+} from '../controllers/appointments.controller.js';
 import { requireBarberKey } from '../middlewares/requireBarberKey.js';
+import { rateLimit } from '../middlewares/rateLimit.js';
 
 const router = Router();
 
 router.get('/availability', getAvailabilityHandler);
+router.post('/by-phone', rateLimit({ windowMs: 10 * 60 * 1000, max: 30 }), listAppointmentsByPhoneHandler);
 router.get('/', listAppointmentsHandler);
 router.post('/', createAppointmentHandler);
 router.patch('/:id/cancel', requireBarberKey, cancelAppointmentHandler);

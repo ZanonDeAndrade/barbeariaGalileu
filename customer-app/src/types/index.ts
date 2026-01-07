@@ -20,3 +20,12 @@ export interface CreateAppointmentPayload {
   startTime: string;
   notes?: string;
 }
+
+export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED';
+
+export interface CustomerAppointmentSummary {
+  id: string;
+  startTime: string;
+  haircutType: string;
+  status: AppointmentStatus;
+}

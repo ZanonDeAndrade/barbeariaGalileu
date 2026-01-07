@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   getHaircutsHandler,
-} from '../controllers/appointmentController.js';
+} from '../controllers/appointments.controller.js';
 import appointmentsRouter from './appointments.routes.js';
 import blockedSlotsRouter from './blockedSlots.routes.js';
 import paymentsRouter from './payments.routes.js';

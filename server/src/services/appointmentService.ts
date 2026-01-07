@@ -5,6 +5,7 @@ import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
 import { getHaircutById, listHaircutOptions } from './haircutService.js';
 import { notifyAppointmentConfirmation } from './notificationService.js';
+import { normalizePhone } from '../utils/phone.js';
 
 export const BUSINESS_START_HOUR = 8;
 export const BUSINESS_END_HOUR = 19;
@@ -89,6 +90,12 @@ export async function listHaircuts() {
 
 export async function createAppointment(payload: CreateAppointmentInput) {
   const data = createAppointmentSchema.parse(payload);
+  const customerPhone = normalizePhone(data.customerPhone);
+  const notes = data.notes?.trim() ? data.notes.trim() : undefined;
+
+  if (customerPhone.length < 8) {
+    throw new HttpError(400, 'Telefone inválido');
+  }
 
   const haircut = getHaircutById(data.haircutType);
   if (!haircut) {
@@ -111,12 +118,19 @@ export async function createAppointment(payload: CreateAppointmentInput) {
 
   let appointment;
   try {
+    const customer = await prisma.customer.upsert({
+      where: { phone: customerPhone },
+      update: {},
+      create: { phone: customerPhone },
+    });
+
     appointment = await prisma.appointment.create({
       data: {
         customerName: data.customerName,
-        customerPhone: data.customerPhone,
+        customerPhone,
+        customerId: customer.id,
         haircutType: haircut.id,
-        notes: data.notes,
+        notes,
         startTime: requiredSlots[0],
         durationMinutes: haircut.durationMinutes,
       },
@@ -132,6 +146,49 @@ export async function createAppointment(payload: CreateAppointmentInput) {
   void notifyAppointmentConfirmation(appointment, haircut);
 
   return appointment;
+}
+
+export type CustomerAppointmentSummary = {
+  id: string;
+  startTime: string;
+  haircutType: string;
+  status: 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED';
+};
+
+export async function listCustomerAppointments(
+  customerId: string,
+  options?: { limit?: number },
+): Promise<CustomerAppointmentSummary[]> {
+  const appointments = await prisma.appointment.findMany({
+    where: { customerId },
+    select: { id: true, startTime: true, haircutType: true, status: true },
+    orderBy: { startTime: 'desc' },
+    take: options?.limit,
+  });
+
+  return appointments.map((appointment) => ({
+    id: appointment.id,
+    startTime: appointment.startTime.toISOString(),
+    haircutType: appointment.haircutType,
+    status: appointment.status as CustomerAppointmentSummary['status'],
+  }));
+}
+
+export async function listAppointmentsByPhone(
+  phone: string,
+  options?: { limit?: number },
+): Promise<CustomerAppointmentSummary[]> {
+  const normalized = normalizePhone(phone);
+  const customer = await prisma.customer.findUnique({
+    where: { phone: normalized },
+    select: { id: true },
+  });
+
+  if (!customer) {
+    return [];
+  }
+
+  return listCustomerAppointments(customer.id, options);
 }
 
 export async function getAvailability(dateISO: string | undefined): Promise<SlotAvailability[]> {

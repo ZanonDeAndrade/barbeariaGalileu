@@ -12,7 +12,7 @@ import { requireBarberKey } from '../middlewares/requireBarberKey.js';
 
 const router = Router();
 
-// Cartão (Checkout Transparente / Payment Brick)
+
 router.post('/process-payment', processCardPaymentHandler);
 
 // Pix
