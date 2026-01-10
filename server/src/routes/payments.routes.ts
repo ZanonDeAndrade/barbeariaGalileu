@@ -8,7 +8,6 @@ import {
   mercadoPagoSyncHandler,
   mercadoPagoWebhookHandler,
 } from '../controllers/mercadopagoWebhookController.js';
-import { requireBarberKey } from '../middlewares/requireBarberKey.js';
 
 const router = Router();
 
@@ -25,6 +24,6 @@ router.post('/payment/cash', createCashAppointmentHandler);
 router.post('/webhook-pagamento', mercadoPagoWebhookHandler);
 
 // Sync manual (quando webhook falhar)
-router.post('/barber/payments/:paymentId/sync', requireBarberKey, mercadoPagoSyncHandler);
+router.post('/barber/payments/:paymentId/sync', mercadoPagoSyncHandler);
 
 export default router;

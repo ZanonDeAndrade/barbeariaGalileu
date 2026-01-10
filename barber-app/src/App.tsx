@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
 import BarberDashboard from './pages/BarberDashboard';
 import BlockSchedulePage from './pages/BlockSchedulePage';
+import MonthlyMetricsPage from './pages/MonthlyMetricsPage';
 
-type ActivePage = 'dashboard' | 'block';
+type ActivePage = 'dashboard' | 'block' | 'monthly-metrics';
 
 const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -13,6 +14,7 @@ function App() {
   const [selectedDate, setSelectedDate] = useState<string>(today);
 
   const handleNavigateToBlocks = () => setActivePage('block');
+  const handleNavigateToMonthlyMetrics = () => setActivePage('monthly-metrics');
   const handleNavigateToDashboard = () => setActivePage('dashboard');
 
   return (
@@ -30,13 +32,16 @@ function App() {
             selectedDate={selectedDate}
             onChangeDate={setSelectedDate}
             onNavigateToBlocks={handleNavigateToBlocks}
+            onNavigateToMonthlyMetrics={handleNavigateToMonthlyMetrics}
           />
-        ) : (
+        ) : activePage === 'block' ? (
           <BlockSchedulePage
             selectedDate={selectedDate}
             onChangeDate={setSelectedDate}
             onBack={handleNavigateToDashboard}
           />
+        ) : (
+          <MonthlyMetricsPage defaultMonth={selectedDate.slice(0, 7)} onBack={handleNavigateToDashboard} />
         )}
       </main>
       <footer className="app-footer">

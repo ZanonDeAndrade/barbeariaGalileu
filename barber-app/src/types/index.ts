@@ -15,6 +15,12 @@ export interface SlotAvailability {
 export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED';
 export type CancelledByRole = 'BARBER';
 
+export type MonthlyAppointmentsSummary = {
+  month: string;
+  total: number;
+  byService: { haircutType: string; count: number }[];
+};
+
 export interface Appointment {
   id: string;
   customerName: string;

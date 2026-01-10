@@ -8,11 +8,17 @@ type BarberDashboardProps = {
   selectedDate: string;
   onChangeDate: (date: string) => void;
   onNavigateToBlocks: () => void;
+  onNavigateToMonthlyMetrics: () => void;
 };
 
 const today = format(new Date(), 'yyyy-MM-dd');
 
-function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: BarberDashboardProps) {
+function BarberDashboard({
+  selectedDate,
+  onChangeDate,
+  onNavigateToBlocks,
+  onNavigateToMonthlyMetrics,
+}: BarberDashboardProps) {
   const [haircuts, setHaircuts] = useState<HaircutOption[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
@@ -199,9 +205,14 @@ function BarberDashboard({ selectedDate, onChangeDate, onNavigateToBlocks }: Bar
               Defina a data para visualizar os horários confirmados.
             </p>
           </div>
-          <button type="button" className="btn btn-secondary" onClick={onNavigateToBlocks}>
-            Bloquear horários
-          </button>
+          <div className="inline-actions" style={{ flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-secondary" onClick={onNavigateToMonthlyMetrics}>
+              Métricas Mensais
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onNavigateToBlocks}>
+              Bloquear horários
+            </button>
+          </div>
         </div>
         <div className="form-grid" style={{ marginTop: '1.5rem' }}>
           <label>
