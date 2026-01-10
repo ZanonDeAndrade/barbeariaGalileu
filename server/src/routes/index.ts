@@ -3,6 +3,7 @@ import {
   getHaircutsHandler,
 } from '../controllers/appointments.controller.js';
 import appointmentsRouter from './appointments.routes.js';
+import barberRouter from './barber.routes.js';
 import blockedSlotsRouter from './blockedSlots.routes.js';
 import paymentsRouter from './payments.routes.js';
 
@@ -14,6 +15,7 @@ router.get('/health', (_req, res) => {
 
 router.get('/haircuts', getHaircutsHandler);
 router.use('/appointments', appointmentsRouter);
+router.use('/barber', barberRouter);
 router.use('/blocked-slots', blockedSlotsRouter);
 // Rotas de pagamento (endereços conforme especificado):
 router.use('/', paymentsRouter);
