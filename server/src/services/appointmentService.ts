@@ -12,6 +12,17 @@ export const BUSINESS_END_HOUR = 19;
 export const BUSINESS_END_MINUTE = 30; 
 export const SLOT_INTERVAL_MINUTES = 30;
 
+const LUNCH_BREAK_SLOTS: Array<{ hour: number; minute: number }> = [
+  { hour: 12, minute: 0 },
+  { hour: 12, minute: 30 },
+];
+
+function isLunchBreakSlot(date: Date) {
+  return LUNCH_BREAK_SLOTS.some(
+    (slot) => date.getHours() === slot.hour && date.getMinutes() === slot.minute,
+  );
+}
+
 const createAppointmentSchema = z.object({
   customerName: z.string().min(3, 'Informe o nome completo'),
   customerPhone: z.string().min(8, 'Telefone inválido'),
@@ -270,6 +281,10 @@ export function normalizeToBusinessSlot(date: Date): Date | null {
   const openingTime = set(businessDay, { hours: BUSINESS_START_HOUR });
   const closingTime = set(businessDay, { hours: BUSINESS_END_HOUR, minutes: BUSINESS_END_MINUTE });
 
+  if (isLunchBreakSlot(date)) {
+    return null;
+  }
+
   if (isBefore(date, openingTime) || !isBefore(date, addMinutes(closingTime, SLOT_INTERVAL_MINUTES))) {
     return null;
   }
@@ -289,7 +304,9 @@ export function generateDailySlots(baseDate: Date): Date[] {
   let current = start;
 
   while (isBefore(current, end) || current.getTime() === end.getTime()) {
-    slots.push(current);
+    if (!isLunchBreakSlot(current)) {
+      slots.push(current);
+    }
     current = addMinutes(current, SLOT_INTERVAL_MINUTES);
   }
 
