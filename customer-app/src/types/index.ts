@@ -21,11 +21,17 @@ export interface CreateAppointmentPayload {
   notes?: string;
 }
 
-export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED';
+export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
 export interface CustomerAppointmentSummary {
   id: string;
   startTime: string;
   haircutType: string;
   status: AppointmentStatus;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  rescheduledFromId: string | null;
+  rescheduledToId: string | null;
+  canCancel: boolean;
+  canReschedule: boolean;
 }

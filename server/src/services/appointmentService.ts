@@ -1,6 +1,7 @@
 import { addMinutes, endOfDay, isBefore, parseISO, set, startOfDay } from 'date-fns';
+import { DateTime } from 'luxon';
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Prisma, type Appointment } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
 import { getHaircutById, listHaircutOptions } from './haircutService.js';
@@ -11,6 +12,9 @@ export const BUSINESS_START_HOUR = 8;
 export const BUSINESS_END_HOUR = 19;
 export const BUSINESS_END_MINUTE = 30; 
 export const SLOT_INTERVAL_MINUTES = 30;
+export const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
+
+const CUSTOMER_CANCELLABLE_STATUSES = new Set(['SCHEDULED', 'CONFIRMED']);
 
 const LUNCH_BREAK_SLOTS: Array<{ hour: number; minute: number }> = [
   { hour: 12, minute: 0 },
@@ -21,6 +25,74 @@ function isLunchBreakSlot(date: Date) {
   return LUNCH_BREAK_SLOTS.some(
     (slot) => date.getHours() === slot.hour && date.getMinutes() === slot.minute,
   );
+}
+
+type AppointmentWithCustomer = Appointment & { customer?: { phone: string | null } | null };
+type PrismaLike = Pick<typeof prisma, 'appointment' | 'customer' | 'blockedSlot' | '$transaction'>;
+
+function nowInTimeZone(zone: string = DEFAULT_TIME_ZONE) {
+  return DateTime.now().setZone(zone);
+}
+
+function isFutureInTimeZone(date: Date, zone: string = DEFAULT_TIME_ZONE) {
+  const zonedDate = DateTime.fromJSDate(date).setZone(zone);
+  return zonedDate > nowInTimeZone(zone);
+}
+
+function isAppointmentPaid(appointment: Appointment) {
+  const normalized = (appointment.paymentStatus ?? '').toLowerCase();
+  return normalized === 'approved' || normalized === 'paid';
+}
+
+function assertCustomerOwnership(appointment: AppointmentWithCustomer, normalizedPhone: string) {
+  const appointmentPhone = normalizePhone(appointment.customerPhone);
+  const customerPhone = appointment.customer?.phone ? normalizePhone(appointment.customer.phone) : null;
+
+  if (appointmentPhone === normalizedPhone || customerPhone === normalizedPhone) {
+    return;
+  }
+
+  throw new HttpError(403, 'Agendamento nao pertence a este telefone', {
+    code: 'OWNERSHIP_MISMATCH',
+  });
+}
+
+function ensureCustomerCanModify(appointment: Appointment) {
+  if (!CUSTOMER_CANCELLABLE_STATUSES.has(appointment.status)) {
+    throw new HttpError(409, 'Agendamento nao pode ser alterado neste status', {
+      code: 'INVALID_STATUS',
+    });
+  }
+
+  if (!isFutureInTimeZone(appointment.startTime)) {
+    throw new HttpError(409, 'Agendamento ja passou ou esta em atendimento', {
+      code: 'PAST_APPOINTMENT',
+    });
+  }
+
+  if (isAppointmentPaid(appointment)) {
+    throw new HttpError(409, 'Pagamento ja aprovado. Fale com a barbearia.', {
+      code: 'PAYMENT_ALREADY_PAID',
+    });
+  }
+}
+
+function computeCustomerActions(appointment: Appointment) {
+  const canModify =
+    CUSTOMER_CANCELLABLE_STATUSES.has(appointment.status) && isFutureInTimeZone(appointment.startTime);
+
+  return {
+    canCancel: canModify,
+    canReschedule: canModify,
+  };
+}
+
+function parseStartTimeInput(value: string | Date, fieldName = 'startTime') {
+  const parsed = value instanceof Date ? value : parseISO(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new HttpError(400, `Data/hora invalida (${fieldName})`);
+  }
+  return parsed;
 }
 
 const createAppointmentSchema = z.object({
@@ -95,6 +167,131 @@ export async function cancelAppointment(appointmentId: string, params: { reason?
   });
 }
 
+export async function cancelAppointmentByCustomer(
+  appointmentId: string,
+  params: { phone: string; reason?: string },
+  deps: { prismaClient?: PrismaLike } = {},
+) {
+  const prismaClient = deps.prismaClient ?? prisma;
+  const normalizedPhone = normalizePhone(params.phone);
+  const appointment = await prismaClient.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      customer: {
+        select: { phone: true },
+      },
+    },
+  });
+
+  if (!appointment) {
+    throw new HttpError(404, 'Agendamento nao encontrado', { code: 'NOT_FOUND' });
+  }
+
+  assertCustomerOwnership(appointment as AppointmentWithCustomer, normalizedPhone);
+
+  if (appointment.status === 'CANCELLED') {
+    return appointment;
+  }
+
+  ensureCustomerCanModify(appointment);
+
+  const reason = params.reason?.trim();
+
+  return prismaClient.appointment.update({
+    where: { id: appointmentId },
+    data: {
+      status: 'CANCELLED',
+      cancelledAt: new Date(),
+      cancelledByRole: 'CUSTOMER',
+      cancelReason: reason && reason.length > 0 ? reason : null,
+    },
+  });
+}
+
+export async function rescheduleAppointmentByCustomer(
+  appointmentId: string,
+  params: { phone: string; newStartTime: string | Date; reason?: string },
+  deps: { prismaClient?: PrismaLike } = {},
+) {
+  const prismaClient = deps?.prismaClient ?? prisma;
+  const normalizedPhone = normalizePhone(params.phone);
+  const parsedStartTime = parseStartTimeInput(params.newStartTime, 'newStartTime');
+
+  const appointment = await prismaClient.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      customer: {
+        select: { phone: true },
+      },
+    },
+  });
+
+  if (!appointment) {
+    throw new HttpError(404, 'Agendamento nao encontrado', { code: 'NOT_FOUND' });
+  }
+
+  assertCustomerOwnership(appointment as AppointmentWithCustomer, normalizedPhone);
+  ensureCustomerCanModify(appointment);
+
+  const normalizedSlot = normalizeToBusinessSlot(parsedStartTime);
+  if (!normalizedSlot) {
+    throw new HttpError(400, 'Horario fora do expediente', { code: 'INVALID_SLOT' });
+  }
+
+  if (!isFutureInTimeZone(normalizedSlot)) {
+    throw new HttpError(409, 'Novo horario precisa estar no futuro', { code: 'PAST_APPOINTMENT' });
+  }
+
+  const expectedSlots = Math.max(1, Math.ceil(appointment.durationMinutes / SLOT_INTERVAL_MINUTES));
+  const requiredSlots = computeSequentialSlots(normalizedSlot, appointment.durationMinutes);
+
+  if (requiredSlots.length !== expectedSlots) {
+    throw new HttpError(400, 'Horario fora do expediente', { code: 'INVALID_SLOT' });
+  }
+
+  await ensureSlotsAvailable(requiredSlots, prismaClient);
+
+  const reason = params.reason?.trim();
+  const cancelReason = reason && reason.length > 0 ? `Rescheduled: ${reason}` : 'Rescheduled';
+
+  try {
+    const result = await prismaClient.$transaction(async (tx) => {
+      const newAppointment = await tx.appointment.create({
+        data: {
+          customerName: appointment.customerName,
+          customerPhone: appointment.customerPhone,
+          customerId: appointment.customerId,
+          haircutType: appointment.haircutType,
+          notes: appointment.notes ?? undefined,
+          startTime: requiredSlots[0],
+          durationMinutes: appointment.durationMinutes,
+          rescheduledFromId: appointment.id,
+        },
+      });
+
+      const oldAppointment = await tx.appointment.update({
+        where: { id: appointment.id },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelledByRole: 'CUSTOMER',
+          cancelReason,
+          rescheduledToId: newAppointment.id,
+        },
+      });
+
+      return { newAppointment, oldAppointment };
+    });
+
+    return result;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new HttpError(409, 'Horario indisponivel', { code: 'HORARIO_INDISPONIVEL' });
+    }
+    throw error;
+  }
+}
+
 export async function listHaircuts() {
   return listHaircutOptions();
 }
@@ -148,7 +345,7 @@ export async function createAppointment(payload: CreateAppointmentInput) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new HttpError(409, 'HorÇ­rio indisponÇðvel');
+      throw new HttpError(409, 'Horario indisponivel', { code: 'HORARIO_INDISPONIVEL' });
     }
     throw error;
   }
@@ -163,7 +360,13 @@ export type CustomerAppointmentSummary = {
   id: string;
   startTime: string;
   haircutType: string;
-  status: 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED';
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  rescheduledFromId: string | null;
+  rescheduledToId: string | null;
+  canCancel: boolean;
+  canReschedule: boolean;
 };
 
 export async function listCustomerAppointments(
@@ -172,7 +375,16 @@ export async function listCustomerAppointments(
 ): Promise<CustomerAppointmentSummary[]> {
   const appointments = await prisma.appointment.findMany({
     where: { customerId },
-    select: { id: true, startTime: true, haircutType: true, status: true },
+    select: {
+      id: true,
+      startTime: true,
+      haircutType: true,
+      status: true,
+      cancelledAt: true,
+      cancelReason: true,
+      rescheduledFromId: true,
+      rescheduledToId: true,
+    },
     orderBy: { startTime: 'desc' },
     take: options?.limit,
   });
@@ -182,6 +394,11 @@ export async function listCustomerAppointments(
     startTime: appointment.startTime.toISOString(),
     haircutType: appointment.haircutType,
     status: appointment.status as CustomerAppointmentSummary['status'],
+    cancelledAt: appointment.cancelledAt ? appointment.cancelledAt.toISOString() : null,
+    cancelReason: appointment.cancelReason ?? null,
+    rescheduledFromId: appointment.rescheduledFromId ?? null,
+    rescheduledToId: appointment.rescheduledToId ?? null,
+    ...computeCustomerActions(appointment as Appointment),
   }));
 }
 
@@ -229,7 +446,7 @@ export async function getAvailability(dateISO: string | undefined): Promise<Slot
           lte: dayEnd,
         },
         status: {
-          not: 'CANCELLED',
+          in: ['SCHEDULED', 'CONFIRMED'],
         },
       },
     }),
@@ -333,9 +550,9 @@ function computeSequentialSlots(startSlot: Date, durationMinutes: number): Date[
   return result;
 }
 
-export async function ensureSlotsAvailable(slots: Date[]) {
+export async function ensureSlotsAvailable(slots: Date[], prismaClient: PrismaLike = prisma) {
   if (slots.length === 0) {
-    throw new HttpError(400, 'Horário inválido');
+    throw new HttpError(400, 'Horario invalido', { code: 'INVALID_SLOT' });
   }
 
   const requestedTimes = new Set(slots.map((slot) => slot.getTime()));
@@ -343,18 +560,18 @@ export async function ensureSlotsAvailable(slots: Date[]) {
   const dayEnd = endOfDay(slots[0]);
 
   const [appointments, blocked] = await Promise.all([
-    prisma.appointment.findMany({
+    prismaClient.appointment.findMany({
       where: {
         startTime: {
           gte: dayStart,
           lte: dayEnd,
         },
         status: {
-          not: 'CANCELLED',
+          in: ['SCHEDULED', 'CONFIRMED'],
         },
       },
     }),
-    prisma.blockedSlot.findMany({
+    prismaClient.blockedSlot.findMany({
       where: {
         startTime: {
           in: slots,
@@ -374,10 +591,10 @@ export async function ensureSlotsAvailable(slots: Date[]) {
   });
 
   if (conflictingAppointment) {
-    throw new HttpError(409, 'Horário indisponível');
+    throw new HttpError(409, 'Horario indisponivel', { code: 'HORARIO_INDISPONIVEL' });
   }
 
   if (blocked.length > 0) {
-    throw new HttpError(409, 'Horário bloqueado pelo barbeiro');
+    throw new HttpError(409, 'Horario bloqueado pelo barbeiro', { code: 'HORARIO_BLOQUEADO' });
   }
 }

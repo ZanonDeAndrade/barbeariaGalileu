@@ -11,6 +11,9 @@ export function errorHandler(
   if (err instanceof HttpError) {
     return res.status(err.status).json({
       message: err.message,
+      code: err.code ?? (typeof err.details === 'object' && err.details && 'code' in (err.details as any)
+        ? (err.details as any).code
+        : undefined),
       details: err.details,
     });
   }

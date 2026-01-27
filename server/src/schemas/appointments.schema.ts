@@ -30,6 +30,29 @@ export const createAppointmentBodySchema = z.object({
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentBodySchema>;
 
+export const cancelByCustomerBodySchema = z.object({
+  phone: phoneSchema,
+  reason: z.string().max(280).optional(),
+});
+
+export const rescheduleAppointmentBodySchema = z.object({
+  phone: phoneSchema,
+  newStartTime: z.union([z.string(), z.date()]).transform((value) => {
+    const parsed = value instanceof Date ? value : parseISO(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new z.ZodError([
+        {
+          code: z.ZodIssueCode.custom,
+          message: 'Data/hora invalida',
+          path: ['newStartTime'],
+        },
+      ]);
+    }
+    return parsed;
+  }),
+  reason: z.string().max(280).optional(),
+});
+
 export const appointmentsByPhoneBodySchema = z.object({
   phone: phoneSchema,
   limit: z.number().int().min(1).max(20).optional().default(5),
