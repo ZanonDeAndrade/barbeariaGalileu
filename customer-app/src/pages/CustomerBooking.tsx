@@ -30,6 +30,7 @@ function CustomerBooking() {
   const [appointmentDraft, setAppointmentDraft] = useState<CreateAppointmentPayload | null>(null);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const isProgrammaticPickerOpen = useRef(false);
+  const myAppointmentsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     async function fetchHaircuts() {
@@ -152,6 +153,31 @@ function CustomerBooking() {
     setSubmitting(false);
   };
 
+  const handleToggleAppointments = () => {
+    const normalizedPhone = customerPhone.replace(/\D/g, '');
+    handleClosePayment();
+
+    if (normalizedPhone.length >= 8) {
+      try {
+        localStorage.setItem('customerPhone', normalizedPhone);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (activeTab === 'booking') {
+      setActiveTab('my-appointments');
+      setTimeout(() => {
+        myAppointmentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    } else {
+      setActiveTab('booking');
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 80);
+    }
+  };
+
   const handlePaymentSuccess = async ({ appointmentId, status }: { appointmentId?: string; status: string }) => {
     try {
       const message =
@@ -178,6 +204,9 @@ function CustomerBooking() {
 
       handleClosePayment();
       setActiveTab('my-appointments');
+      setTimeout(() => {
+        myAppointmentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
 
       const updated = await api.get<SlotAvailability[]>('/appointments/availability', {
         params: { date: selectedDate },
@@ -196,33 +225,27 @@ function CustomerBooking() {
           Escolha o estilo, a data e o horário que preferir. Preencha seus dados para garantir o atendimento.
         </p>
 
-        <div style={{ marginTop: '1.25rem' }}>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              handleClosePayment();
-              if (activeTab === 'booking') {
-                try {
-                  const normalizedPhone = customerPhone.replace(/\D/g, '');
-                  if (normalizedPhone.length >= 8) {
-                    localStorage.setItem('customerPhone', normalizedPhone);
-                  }
-                } catch {
-                  // ignore
-                }
-                setActiveTab('my-appointments');
-              } else {
-                setActiveTab('booking');
-              }
-            }}
-          >
-            {activeTab === 'booking' ? 'Meus Agendamentos' : 'Voltar para agendar'}
+        <div
+          style={{
+            marginTop: '1.25rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <button type="button" className="btn btn-secondary" onClick={handleToggleAppointments}>
+            {activeTab === 'booking' ? 'Consultar agendamentos pelo telefone' : 'Voltar para agendar'}
           </button>
+          {activeTab === 'booking' && (
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem' }}>
+              Consulte, cancele ou remarque um horario ja marcado.
+            </span>
+          )}
         </div>
       </section>
 
-      <section className="card card--dark">
+      <section className="card card--dark" ref={myAppointmentsRef}>
         {feedback && (
           <div className={`status-banner ${feedback.type}`} style={{ marginBottom: '1rem' }}>
             {feedback.message}
@@ -310,7 +333,7 @@ function CustomerBooking() {
         )}
           </>
         ) : (
-          <MyAppointments haircuts={haircuts} />
+          <MyAppointments haircuts={haircuts} initialPhone={customerPhone} autoFocusPhone />
         )}
       </section>
     </div>

@@ -1,14 +1,20 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { appointmentsByPhoneBodySchema } from '../schemas/appointments.schema.js';
+import {
+  appointmentsByPhoneBodySchema,
+  cancelByCustomerBodySchema,
+  rescheduleAppointmentBodySchema,
+} from '../schemas/appointments.schema.js';
 import {
   cancelAppointment,
+  cancelAppointmentByCustomer,
   createAppointment,
   getAvailability,
   listAppointments,
   listAppointmentsByPhone,
   listCustomerAppointments,
   listHaircuts,
+  rescheduleAppointmentByCustomer,
 } from '../services/appointmentService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -55,6 +61,30 @@ export const cancelAppointmentHandler = asyncHandler(async (req: Request, res: R
 
   const appointment = await cancelAppointment(id, { reason });
   res.json(appointment);
+});
+
+export const cancelAppointmentByCustomerHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const { id } = paramsSchema.parse(req.params);
+  const { phone, reason } = cancelByCustomerBodySchema.parse(req.body ?? {});
+
+  const appointment = await cancelAppointmentByCustomer(id, { phone, reason });
+  res.json(appointment);
+});
+
+export const rescheduleAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsSchema = z.object({
+    id: z.string().min(1),
+  });
+
+  const { id } = paramsSchema.parse(req.params);
+  const { phone, newStartTime, reason } = rescheduleAppointmentBodySchema.parse(req.body ?? {});
+
+  const result = await rescheduleAppointmentByCustomer(id, { phone, newStartTime, reason });
+  res.json(result);
 });
 
 export const listAppointmentsByPhoneHandler = asyncHandler(async (req: Request, res: Response) => {

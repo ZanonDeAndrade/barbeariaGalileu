@@ -22,6 +22,13 @@ model Appointment {
   cancelledAt     DateTime?
   cancelledByRole CancelledByRole?
   cancelReason    String?
+  rescheduledFromId       String?
+  rescheduledFrom         Appointment?   @relation("AppointmentRescheduledFrom", fields: [rescheduledFromId], references: [id])
+  rescheduledFromChildren Appointment[]  @relation("AppointmentRescheduledFrom")
+
+  rescheduledToId         String?
+  rescheduledTo           Appointment?   @relation("AppointmentRescheduledTo", fields: [rescheduledToId], references: [id])
+  rescheduledToChildren   Appointment[]  @relation("AppointmentRescheduledTo")
   // Pagamentos
   paymentMethod   String?  // cartao | pix | dinheiro
   paymentStatus   String?  // pending | approved | rejected
@@ -31,16 +38,21 @@ model Appointment {
 
   @@index([status, startTime])
   @@index([customerId, startTime])
+  @@index([rescheduledFromId])
+  @@index([rescheduledToId])
 }
 
 enum AppointmentStatus {
   SCHEDULED
   CONFIRMED
+  COMPLETED
   CANCELLED
 }
 
 enum CancelledByRole {
   BARBER
+  ADMIN
+  CUSTOMER
 }
 
 model BlockedSlot {
