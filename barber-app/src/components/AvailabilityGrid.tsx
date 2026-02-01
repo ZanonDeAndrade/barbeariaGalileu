@@ -5,14 +5,32 @@ import type { SlotAvailability } from '../types';
 interface AvailabilityGridProps {
   slots: SlotAvailability[];
   selectedSlot?: string;
+  selectedSlots?: string[];
+  multiSelect?: boolean;
   onSelect?: (slot: string) => void;
+  onToggleSelect?: (slot: string) => void;
 }
 
-export function AvailabilityGrid({ slots, selectedSlot, onSelect }: AvailabilityGridProps) {
+export function AvailabilityGrid({
+  slots,
+  selectedSlot,
+  selectedSlots = [],
+  multiSelect = false,
+  onSelect,
+  onToggleSelect,
+}: AvailabilityGridProps) {
+  const selectedSet = new Set(selectedSlots);
+
   const handleSelect = (slot: SlotAvailability) => {
-    if (slot.status !== 'available') {
+    const isBooked = slot.status === 'booked';
+    if (isBooked) return;
+
+    if (multiSelect) {
+      onToggleSelect?.(slot.startTime);
       return;
     }
+
+    if (slot.status !== 'available') return;
     onSelect?.(slot.startTime);
   };
 
@@ -33,14 +51,17 @@ export function AvailabilityGrid({ slots, selectedSlot, onSelect }: Availability
             : slot.status === 'booked'
               ? 'Reservado'
               : 'Bloqueado';
-        const isSelected = selectedSlot === slot.startTime;
+        const isSelected = multiSelect
+          ? selectedSet.has(slot.startTime)
+          : selectedSlot === slot.startTime;
+        const isDisabled = slot.status === 'booked';
         return (
           <button
             key={slot.startTime}
             type="button"
             className={`slot-button ${slot.status}${isSelected ? ' selected' : ''}`}
             onClick={() => handleSelect(slot)}
-            disabled={slot.status !== 'available'}
+            disabled={isDisabled}
           >
             <span>{label}</span>
             <small>{detailLabel}</small>
