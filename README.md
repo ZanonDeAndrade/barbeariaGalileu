@@ -40,6 +40,8 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
   - `GET /api/blocked-slots?date=YYYY-MM-DD` — bloqueios do dia.
   - `POST /api/blocked-slots` — bloqueia horário específico.
   - `DELETE /api/blocked-slots/:id` — remove bloqueio.
+  - `POST /api/barber/blocked-slots/bulk` — bloqueia vários horários de uma data (payload: `{ date, times: ["08:00",...], reason? }`) — protegido por `x-barber-api-key` quando `BARBER_API_KEY` estiver definido.
+  - `DELETE /api/barber/blocked-slots/bulk` — remove bloqueios em lote (payload: `{ date, times: [...] }`) — protegido por `x-barber-api-key`.
 - Variáveis de ambiente:
   - `DATABASE_URL` — conexão do Prisma (SQLite local por padrão).
   - `ALLOWED_ORIGINS` — lista de origens separadas por vírgula autorizadas no CORS.

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { MouseEventHandler } from 'react';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
 import { api } from '../services/api';
+import { blockedSlotsApi } from '../services/blockedSlots';
 import type { BlockedSlot, SlotAvailability } from '../types';
 
 type BlockSchedulePageProps = {
@@ -17,9 +18,11 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
   const [availability, setAvailability] = useState<SlotAvailability[]>([]);
   const [blockedSlots, setBlockedSlots] = useState<BlockedSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>();
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [blockReason, setBlockReason] = useState('');
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [multiSelect, setMultiSelect] = useState(false);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const isProgrammaticPickerOpen = useRef(false);
 
@@ -28,6 +31,7 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
       setLoadingAvailability(true);
       setFeedback(null);
       setSelectedSlot(undefined);
+      setSelectedSlots([]);
       try {
         const [slots, blocks] = await Promise.all([
           api.get<SlotAvailability[]>('/appointments/availability', {
@@ -56,6 +60,7 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
   }, [selectedDate]);
 
   const hasAvailableSlots = availability.some((slot) => slot.status === 'available');
+  const hasSelection = multiSelect ? selectedSlots.length > 0 : Boolean(selectedSlot);
 
   const refreshDailyData = async () => {
     const [slots, blocks] = await Promise.all([
@@ -71,22 +76,28 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
   };
 
   const handleBlockSlot = async () => {
-    if (!selectedSlot) {
-      return;
-    }
+    const times = multiSelect ? selectedSlots : selectedSlot ? [selectedSlot] : [];
+    if (times.length === 0) return;
 
     setFeedback(null);
     try {
-      await api.post('/blocked-slots', {
-        startTime: selectedSlot,
-        reason: blockReason.trim() || undefined,
-      });
-      setFeedback({
-        type: 'success',
-        message: 'Horário bloqueado com sucesso.',
-      });
+      if (multiSelect) {
+        const timeList = times.map((t) => format(parseISO(t), 'HH:mm'));
+        await blockedSlotsApi.blockBulk(selectedDate, timeList, blockReason.trim() || undefined);
+        setFeedback({ type: 'success', message: 'Horários bloqueados com sucesso.' });
+      } else {
+        await api.post('/blocked-slots', {
+          startTime: times[0],
+          reason: blockReason.trim() || undefined,
+        });
+        setFeedback({
+          type: 'success',
+          message: 'Horário bloqueado com sucesso.',
+        });
+      }
       setBlockReason('');
       setSelectedSlot(undefined);
+      setSelectedSlots([]);
       await refreshDailyData();
     } catch (error) {
       console.error(error);
@@ -113,6 +124,41 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
         message: 'Não foi possível remover o bloqueio.',
       });
     }
+  };
+
+  const handleBulkUnblock = async () => {
+    const times = selectedSlots.filter(Boolean);
+    if (times.length === 0) return;
+
+    setFeedback(null);
+    try {
+      const timeList = times.map((t) => format(parseISO(t), 'HH:mm'));
+      await blockedSlotsApi.unblockBulk(selectedDate, timeList);
+      setFeedback({ type: 'success', message: 'Bloqueios removidos.' });
+      setSelectedSlots([]);
+      await refreshDailyData();
+    } catch (error) {
+      console.error(error);
+      const message =
+        (error as any)?.response?.data?.message ??
+        (error instanceof Error ? error.message : 'Não foi possível remover os bloqueios.');
+      setFeedback({ type: 'error', message });
+    }
+  };
+
+  const toggleSelection = (slotIso: string) => {
+    setSelectedSlots((prev) => {
+      const exists = prev.includes(slotIso);
+      if (exists) {
+        return prev.filter((item) => item !== slotIso);
+      }
+      return [...prev, slotIso];
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedSlot(undefined);
+    setSelectedSlots([]);
   };
 
   const openNativeDatePicker = () => {
@@ -162,6 +208,20 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
         <p className="page-subtitle">
           Selecione os horários que ficarão indisponíveis para agendamento.
         </p>
+        <div style={{ marginTop: '0.75rem' }}>
+          <label className="toggle-chip">
+            <input
+              type="checkbox"
+              checked={multiSelect}
+              onChange={(event) => {
+                setMultiSelect(event.target.checked);
+                clearSelection();
+              }}
+            />
+            <span className="toggle-pill" aria-hidden />
+            <span className="toggle-label">Selecionar múltiplos horários</span>
+          </label>
+        </div>
       </section>
 
       <section className="card">
@@ -188,27 +248,63 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
             <AvailabilityGrid
               slots={availability}
               selectedSlot={selectedSlot}
+              selectedSlots={selectedSlots}
+              multiSelect={multiSelect}
               onSelect={setSelectedSlot}
+              onToggleSelect={toggleSelection}
             />
             <div className="status-banner" style={{ marginTop: '1.5rem' }}>
               {hasAvailableSlots
                 ? 'Selecione um horário livre e utilize o botão abaixo para bloqueá-lo, caso necessário.'
                 : 'Todos os horários deste dia estão reservados ou bloqueados.'}
             </div>
-            <div className="form-grid" style={{ marginTop: '1.5rem' }}>
-              <label>
-                Motivo do bloqueio (opcional)
-                <input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} />
-              </label>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleBlockSlot}
-                disabled={!selectedSlot}
-              >
-                Bloquear horário
-              </button>
-            </div>
+            {multiSelect ? (
+              <div className="card" style={{ marginTop: '1rem' }}>
+                <div className="section-title">Ações em lote</div>
+                <div className="form-grid" style={{ marginTop: '0.75rem' }}>
+                  <label>
+                    Motivo do bloqueio (opcional)
+                    <input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} />
+                  </label>
+                </div>
+                <div className="inline-actions" style={{ marginTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleBlockSlot}
+                    disabled={!hasSelection}
+                  >
+                    Bloquear selecionados
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleBulkUnblock}
+                    disabled={!hasSelection}
+                  >
+                    Desbloquear selecionados
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={clearSelection} disabled={!hasSelection}>
+                    Limpar seleção
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="form-grid" style={{ marginTop: '1.5rem' }}>
+                <label>
+                  Motivo do bloqueio (opcional)
+                  <input value={blockReason} onChange={(event) => setBlockReason(event.target.value)} />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleBlockSlot}
+                  disabled={!selectedSlot}
+                >
+                  Bloquear horário
+                </button>
+              </div>
+            )}
           </>
         )}
       </section>
