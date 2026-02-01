@@ -227,9 +227,9 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
       <section className="card">
         <div className="section-title">Data e horários</div>
         <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
-          <label>
+          <label style={{ minWidth: 0 }}>
             Escolha a data
-            <div className="date-field" onClick={handleDateFieldClick}>
+            <div className="date-field" style={{ minWidth: 0 }} onClick={handleDateFieldClick}>
               <input
                 ref={dateInputRef}
                 type="date"
