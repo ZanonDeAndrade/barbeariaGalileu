@@ -18,6 +18,8 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }) {
     const isProgrammaticPickerOpen = useRef(false);
     useEffect(() => {
         async function fetchAvailabilityData() {
+            const logStart = performance.now();
+            console.log('[ui barber] availability start');
             setLoadingAvailability(true);
             setFeedback(null);
             setSelectedSlot(undefined);
@@ -33,6 +35,7 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }) {
                 ]);
                 setAvailability(slots.data);
                 setBlockedSlots(blocks.data);
+                console.log(`[ui barber] availability response +${(performance.now() - logStart).toFixed(1)}ms for ${selectedDate}`);
             }
             catch (error) {
                 console.error(error);
@@ -45,6 +48,7 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }) {
             }
             finally {
                 setLoadingAvailability(false);
+                console.log(`[ui barber] availability finished +${(performance.now() - logStart).toFixed(1)}ms`);
             }
         }
         fetchAvailabilityData();

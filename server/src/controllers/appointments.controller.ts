@@ -17,16 +17,34 @@ import {
   rescheduleAppointmentByCustomer,
 } from '../services/appointmentService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
+import { performance } from 'perf_hooks';
 
 export const getHaircutsHandler = asyncHandler(async (_req: Request, res: Response) => {
+  const reqId = (_req as any).requestId ?? 'no-reqid';
+  const start = performance.now();
+  console.log(`[${reqId}] haircuts start`);
+
   const haircuts = await listHaircuts();
+  console.log(`[${reqId}] haircuts after-service +${(performance.now() - start).toFixed(1)}ms`);
+
   res.json(haircuts);
+  console.log(`[${reqId}] haircuts before-response +${(performance.now() - start).toFixed(1)}ms`);
 });
 
 export const getAvailabilityHandler = asyncHandler(async (req: Request, res: Response) => {
+  const reqId = (req as any).requestId ?? 'no-reqid';
+  const start = performance.now();
   const { date } = req.query;
-  const availability = await getAvailability(typeof date === 'string' ? date : undefined);
+  console.log(`[${reqId}] availability start`);
+
+  const parsedDate = typeof date === 'string' ? date : undefined;
+  console.log(`[${reqId}] availability after-validate +${(performance.now() - start).toFixed(1)}ms`);
+
+  const availability = await getAvailability(parsedDate);
+  console.log(`[${reqId}] availability after-service +${(performance.now() - start).toFixed(1)}ms`);
+
   res.json(availability);
+  console.log(`[${reqId}] availability before-response +${(performance.now() - start).toFixed(1)}ms`);
 });
 
 export const createAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {

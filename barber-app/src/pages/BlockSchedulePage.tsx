@@ -28,6 +28,8 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
 
   useEffect(() => {
     async function fetchAvailabilityData() {
+      const logStart = performance.now();
+      console.log('[ui barber] availability start');
       setLoadingAvailability(true);
       setFeedback(null);
       setSelectedSlot(undefined);
@@ -43,6 +45,9 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
         ]);
         setAvailability(slots.data);
         setBlockedSlots(blocks.data);
+        console.log(
+          `[ui barber] availability response +${(performance.now() - logStart).toFixed(1)}ms for ${selectedDate}`,
+        );
       } catch (error) {
         console.error(error);
         setAvailability([]);
@@ -53,6 +58,7 @@ function BlockSchedulePage({ selectedDate, onChangeDate, onBack }: BlockSchedule
         });
       } finally {
         setLoadingAvailability(false);
+        console.log(`[ui barber] availability finished +${(performance.now() - logStart).toFixed(1)}ms`);
       }
     }
 
