@@ -8,11 +8,22 @@ import {
 } from '../services/blockedSlotService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { bulkBlockSlotsSchema, bulkUnblockSlotsSchema } from '../schemas/blockedSlots.schema.js';
+import { performance } from 'perf_hooks';
 
 export const listBlockedSlotsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const reqId = (req as any).requestId ?? 'no-reqid';
+  const start = performance.now();
   const { date } = req.query;
-  const blockedSlots = await listBlockedSlots(typeof date === 'string' ? date : undefined);
+  console.log(`[${reqId}] blockedSlots start`);
+
+  const dateStr = typeof date === 'string' ? date : undefined;
+  console.log(`[${reqId}] blockedSlots after-validate +${(performance.now() - start).toFixed(1)}ms`);
+
+  const blockedSlots = await listBlockedSlots(dateStr);
+  console.log(`[${reqId}] blockedSlots after-service +${(performance.now() - start).toFixed(1)}ms`);
+
   res.json(blockedSlots);
+  console.log(`[${reqId}] blockedSlots before-response +${(performance.now() - start).toFixed(1)}ms`);
 });
 
 export const createBlockedSlotHandler = asyncHandler(async (req: Request, res: Response) => {

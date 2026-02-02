@@ -67,3 +67,10 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
 - Interface dedicada ao barbeiro para visualizar agendamentos, bloquear horários e remover bloqueios.
 
 Detalhes adicionais estão documentados dentro de cada diretório.
+
+## Debug de lentidão
+
+- Defina (opcional) `SLOW_REQUEST_MS` e `SLOW_DB_MS` no backend para controlar quando logs saem como warning (defaults: 2000 ms e 200 ms).  
+- Cada requisição recebe/propaga `x-request-id` (gerado se não vier). O server loga tempo total do request e o Prisma marca queries que estourarem o limite (`[db] Model.action 250.0ms`).  
+- Endpoints críticos (haircuts, availability, blocked-slots) possuem “step logs” no console com o mesmo request-id.  
+- Frontends enviam `x-request-id` em todas as chamadas e logam TTFB/parse/total no console do navegador; use isso para correlacionar com os logs do servidor e entender se a lentidão está no fetch ou na renderização.

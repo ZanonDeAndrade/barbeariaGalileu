@@ -4,12 +4,14 @@ import router from './routes/index.js';
 import webhooksRouter from './routes/webhooks.routes.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { corsMiddleware } from './config/cors.js';
+import { requestTimer } from './middlewares/requestTimer.js';
 
 dotenv.config();
 
 export function createApp() {
   const app = express();
 
+  app.use(requestTimer);
   app.use(corsMiddleware);
   app.options('*', corsMiddleware);
   app.use(express.json());

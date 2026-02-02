@@ -48,6 +48,8 @@ function CustomerBooking() {
             if (activeTab !== 'booking') {
                 return;
             }
+            const logStart = performance.now();
+            console.log('[ui] availability start');
             setLoadingAvailability(true);
             setFeedback(null);
             setSelectedSlot(undefined);
@@ -55,7 +57,9 @@ function CustomerBooking() {
                 const slots = await api.get('/appointments/availability', {
                     params: { date: selectedDate },
                 });
+                console.log(`[ui] availability response +${(performance.now() - logStart).toFixed(1)}ms for ${selectedDate}`);
                 setAvailability(slots.data);
+                console.log(`[ui] availability state-set +${(performance.now() - logStart).toFixed(1)}ms`);
             }
             catch (error) {
                 console.error(error);
