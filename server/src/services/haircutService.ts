@@ -2,6 +2,13 @@ import type { HaircutOption } from '../types/haircut.js';
 
 const haircutOptions: HaircutOption[] = [
   {
+    id: 'corte-tradicional',
+    name: 'Corte Tradicional',
+    description: 'Corte classico com maquina e tesoura. Valor R$35,00.',
+    durationMinutes: 30,
+    priceCents: 3500,
+  },
+  {
     id: 'corte-maquina',
     name: 'Corte Maquina',
     description: 'Corte com maquina em todo o cabelo. Valor R$25,00.',
@@ -14,13 +21,6 @@ const haircutOptions: HaircutOption[] = [
     description: 'Corte pensado para criancas, com acabamento suave. Valor R$30,00.',
     durationMinutes: 30,
     priceCents: 3000,
-  },
-  {
-    id: 'corte-tradicional',
-    name: 'Corte Tradicional',
-    description: 'Corte classico com maquina e tesoura. Valor R$35,00.',
-    durationMinutes: 30,
-    priceCents: 3500,
   },
   {
     id: 'corte-degrade',
@@ -40,7 +40,7 @@ const haircutOptions: HaircutOption[] = [
     id: 'barboterapia',
     name: 'Barboterapia',
     description: 'Tratamento completo com toalha quente e hidratacao. Valor R$30,00.',
-    durationMinutes: 45,
+    durationMinutes: 30,
     priceCents: 3000,
   },
   {
