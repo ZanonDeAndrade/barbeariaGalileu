@@ -14,6 +14,15 @@ export function createApp() {
   app.use(requestTimer);
   app.use(corsMiddleware);
   app.options('*', corsMiddleware);
+
+  app.get('/health', (_req, res) => {
+    res.status(200).json({
+      status: 'ok',
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+    });
+  });
+
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 

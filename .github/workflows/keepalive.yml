@@ -1,0 +1,20 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping health endpoint
+        run: |
+          echo "Pinging backend..."
+          curl -s -o /dev/null -w "%{http_code}\n" https://barbeariagalileu.onrender.com/health
+
+      - name: Warm main endpoint
+        run: |
+          curl -s https://barbeariagalileu.onrender.com > /dev/null

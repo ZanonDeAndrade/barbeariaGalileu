@@ -10,7 +10,11 @@ import paymentsRouter from './payments.routes.js';
 const router = Router();
 
 router.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+  });
 });
 
 router.get('/haircuts', getHaircutsHandler);
