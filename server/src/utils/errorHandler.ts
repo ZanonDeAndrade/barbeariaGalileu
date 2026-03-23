@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import { CORS_ERROR_MESSAGE } from '../config/cors.js';
 import { HttpError } from './httpError.js';
 
 export function errorHandler(
@@ -8,6 +9,12 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ) {
+  if (err instanceof Error && err.message === CORS_ERROR_MESSAGE) {
+    return res.status(403).json({
+      message: CORS_ERROR_MESSAGE,
+    });
+  }
+
   if (err instanceof HttpError) {
     return res.status(err.status).json({
       message: err.message,

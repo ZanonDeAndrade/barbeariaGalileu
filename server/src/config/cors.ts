@@ -1,19 +1,36 @@
 import cors, { CorsOptions } from 'cors';
 
+export const CORS_ERROR_MESSAGE = 'Not allowed by CORS';
+
+const defaultAllowedOrigins = [
+  'https://barbearia-galileu-st53.vercel.app',
+  'https://barbearia-galileu-3229.vercel.app',
+];
+
+const corsMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'];
+const corsAllowedHeaders = [
+  'Content-Type',
+  'Authorization',
+  'X-Request-Id',
+  'X-Barber-Api-Key',
+];
+
 function normalizeOrigin(origin: string) {
   return origin.trim().replace(/\/$/, '');
 }
 
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
+function escapeRegex(value: string) {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
+}
+
+const configuredOrigins = (process.env.ALLOWED_ORIGINS ?? '')
   .split(',')
   .map(normalizeOrigin)
   .filter(Boolean);
 
-console.log('[CORS] allowedOrigins:', allowedOrigins);
+const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...configuredOrigins]));
 
-function escapeRegex(value: string) {
-  return value.replace(/[|\\{}()[\]^$+?.]/g, '\\$&');
-}
+console.log('[CORS] allowedOrigins:', allowedOrigins);
 
 function isAllowedOrigin(origin: string) {
   const normalizedOrigin = normalizeOrigin(origin);
@@ -28,26 +45,20 @@ function isAllowedOrigin(origin: string) {
   });
 }
 
-const corsOptions: CorsOptions = {
+export const corsOptions: CorsOptions = {
   origin(origin, callback) {
-    // Requests sem origin (Postman, curl, healthcheck...) → libera
-    if (!origin) {
-      console.log('[CORS] Request sem origin, liberando');
+    if (!origin || isAllowedOrigin(origin)) {
       return callback(null, true);
     }
 
-    console.log('[CORS] Origin recebida:', origin);
-
-    if (isAllowedOrigin(origin)) {
-      console.log('[CORS] Origin permitida:', origin);
-      return callback(null, true);
-    }
-
-    console.warn('[CORS] Origin NÃO permitida:', origin);
-    // Não joga erro 500, só não libera CORS
-    return callback(null, false);
+    console.warn('[CORS] blocked origin:', origin);
+    return callback(new Error(CORS_ERROR_MESSAGE));
   },
+  methods: corsMethods,
+  allowedHeaders: corsAllowedHeaders,
   credentials: true,
+  optionsSuccessStatus: 204,
 };
 
 export const corsMiddleware = cors(corsOptions);
+export const corsPreflightMiddleware = cors(corsOptions);

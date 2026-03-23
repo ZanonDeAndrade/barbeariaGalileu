@@ -3,7 +3,7 @@ import express from 'express';
 import router from './routes/index.js';
 import webhooksRouter from './routes/webhooks.routes.js';
 import { errorHandler } from './utils/errorHandler.js';
-import { corsMiddleware } from './config/cors.js';
+import { corsMiddleware, corsPreflightMiddleware } from './config/cors.js';
 import { requestTimer } from './middlewares/requestTimer.js';
 
 dotenv.config();
@@ -14,9 +14,9 @@ export function createApp() {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
 
-  app.use(requestTimer);
   app.use(corsMiddleware);
-  app.options('*', corsMiddleware);
+  app.options('*', corsPreflightMiddleware);
+  app.use(requestTimer);
 
   app.get('/health', (_req, res) => {
     res.status(200).json({
