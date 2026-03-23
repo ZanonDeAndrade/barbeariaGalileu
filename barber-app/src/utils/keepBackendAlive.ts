@@ -1,5 +1,12 @@
 export function keepBackendAlive() {
-  const URL = 'https://barbeariagalileu.onrender.com/health';
+  const isEnabled = import.meta.env.VITE_ENABLE_KEEP_BACKEND_ALIVE === 'true';
+  const apiBaseUrl = import.meta.env.VITE_API_URL;
+
+  if (!isEnabled || !apiBaseUrl) {
+    return;
+  }
+
+  const URL = `${apiBaseUrl.replace(/\/$/, '')}/health`;
 
   async function ping() {
     try {

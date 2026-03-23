@@ -1,6 +1,6 @@
 import axios from 'axios';
 const isDev = import.meta.env.DEV;
-const baseHost = isDev ? 'http://localhost:4000' : import.meta.env.VITE_API_URL;
+const baseHost = isDev ? 'http://localhost:3000' : import.meta.env.VITE_API_URL;
 const baseURL = (() => {
     if (!baseHost) {
         console.warn('[API] baseURL não definida. Verifique VITE_API_URL em produção.');
