@@ -1,4 +1,3 @@
-import { addMinutes, endOfDay, isBefore, parseISO, set, startOfDay } from 'date-fns';
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 import { Prisma, type Appointment } from '@prisma/client';
@@ -7,12 +6,20 @@ import { HttpError } from '../utils/httpError.js';
 import { getHaircutById, listHaircutOptions } from './haircutService.js';
 import { notifyAppointmentConfirmation } from './notificationService.js';
 import { normalizePhone } from '../utils/phone.js';
+import {
+  BRAZIL_TIME_ZONE,
+  getBrazilDayUtcRange,
+  parseBrazilDateTimeToUtcDate,
+  startOfTodayInBrazilUtc,
+  toBrazilDateTime,
+  toBrazilIsoString,
+} from '../utils/dateTime.js';
 
 export const BUSINESS_START_HOUR = 8;
 export const BUSINESS_END_HOUR = 19;
-export const BUSINESS_END_MINUTE = 30; 
+export const BUSINESS_END_MINUTE = 30;
 export const SLOT_INTERVAL_MINUTES = 30;
-export const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
+export const DEFAULT_TIME_ZONE = BRAZIL_TIME_ZONE;
 
 const CUSTOMER_CANCELLABLE_STATUSES = new Set(['SCHEDULED', 'CONFIRMED']);
 
@@ -21,9 +28,11 @@ const LUNCH_BREAK_SLOTS: Array<{ hour: number; minute: number }> = [
   { hour: 12, minute: 30 },
 ];
 
-function isLunchBreakSlot(date: Date) {
+function isLunchBreakSlot(date: Date | DateTime) {
+  const zonedDate = date instanceof Date ? toBrazilDateTime(date) : date.setZone(DEFAULT_TIME_ZONE);
+
   return LUNCH_BREAK_SLOTS.some(
-    (slot) => date.getHours() === slot.hour && date.getMinutes() === slot.minute,
+    (slot) => zonedDate.hour === slot.hour && zonedDate.minute === slot.minute,
   );
 }
 
@@ -35,8 +44,8 @@ function nowInTimeZone(zone: string = DEFAULT_TIME_ZONE) {
 }
 
 function isFutureInTimeZone(date: Date, zone: string = DEFAULT_TIME_ZONE) {
-  const zonedDate = DateTime.fromJSDate(date).setZone(zone);
-  return zonedDate > nowInTimeZone(zone);
+  const zonedDate = DateTime.fromJSDate(date, { zone: 'utc' }).setZone(zone);
+  return zonedDate.toMillis() > nowInTimeZone(zone).toMillis();
 }
 
 function isAppointmentPaid(appointment: Appointment) {
@@ -88,34 +97,44 @@ function computeCustomerActions(appointment: Appointment) {
 }
 
 function parseStartTimeInput(value: string | Date, fieldName = 'startTime') {
-  const parsed = value instanceof Date ? value : parseISO(value);
-  if (Number.isNaN(parsed.getTime())) {
+  try {
+    return parseBrazilDateTimeToUtcDate(value, fieldName);
+  } catch {
     throw new HttpError(400, `Data/hora invalida (${fieldName})`);
   }
-  return parsed;
 }
+
+function parseSchemaDateTime(value: string | Date, fieldName: string) {
+  try {
+    return parseBrazilDateTimeToUtcDate(value, fieldName);
+  } catch {
+    throw new z.ZodError([
+      {
+        code: z.ZodIssueCode.custom,
+        message: 'Data/hora invalida',
+        path: [fieldName],
+      },
+    ]);
+  }
+}
+
+type CreateAppointmentInput = {
+  customerName: string;
+  customerPhone: string;
+  haircutType: string;
+  startTime: string | Date;
+  notes?: string;
+};
 
 const createAppointmentSchema = z.object({
   customerName: z.string().min(3, 'Informe o nome completo'),
-  customerPhone: z.string().min(8, 'Telefone inválido'),
+  customerPhone: z.string().min(8, 'Telefone invalido'),
   haircutType: z.string(),
-  startTime: z.union([z.string(), z.date()]).transform((value) => {
-    const parsed = value instanceof Date ? value : parseISO(value);
-    if (Number.isNaN(parsed.getTime())) {
-      throw new z.ZodError([
-        {
-          code: z.ZodIssueCode.custom,
-          message: 'Data/hora inválida',
-          path: ['startTime'],
-        },
-      ]);
-    }
-    return parsed;
-  }),
+  startTime: z.union([z.string(), z.date()]).transform<Date>((value) =>
+    parseSchemaDateTime(value, 'startTime'),
+  ),
   notes: z.string().max(280).optional(),
 });
-
-type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 
 type SlotStatus = 'available' | 'booked' | 'blocked';
 
@@ -125,7 +144,7 @@ export interface SlotAvailability {
 }
 
 export async function listAppointments() {
-  const today = startOfDay(new Date());
+  const today = startOfTodayInBrazilUtc();
 
   const appointments = await prisma.appointment.findMany({
     where: {
@@ -147,11 +166,11 @@ export async function cancelAppointment(appointmentId: string, params: { reason?
   });
 
   if (!appointment) {
-    throw new HttpError(404, 'Agendamento nÇœo encontrado');
+    throw new HttpError(404, 'Agendamento nao encontrado');
   }
 
   if (appointment.status === 'CANCELLED') {
-    throw new HttpError(409, 'Agendamento jÇ­ estÇ­ cancelado');
+    throw new HttpError(409, 'Agendamento ja esta cancelado');
   }
 
   const reason = params.reason?.trim();
@@ -302,24 +321,24 @@ export async function createAppointment(payload: CreateAppointmentInput) {
   const notes = data.notes?.trim() ? data.notes.trim() : undefined;
 
   if (customerPhone.length < 8) {
-    throw new HttpError(400, 'Telefone inválido');
+    throw new HttpError(400, 'Telefone invalido');
   }
 
   const haircut = getHaircutById(data.haircutType);
   if (!haircut) {
-    throw new HttpError(400, 'Tipo de corte inválido');
+    throw new HttpError(400, 'Tipo de corte invalido');
   }
 
   const slot = normalizeToBusinessSlot(data.startTime);
   if (!slot) {
-    throw new HttpError(400, 'Horário fora do expediente');
+    throw new HttpError(400, 'Horario fora do expediente');
   }
 
   const expectedSlotCount = Math.max(1, Math.ceil(haircut.durationMinutes / SLOT_INTERVAL_MINUTES));
   const requiredSlots = computeSequentialSlots(slot, haircut.durationMinutes);
 
   if (requiredSlots.length !== expectedSlotCount) {
-    throw new HttpError(400, 'Horário fora do expediente');
+    throw new HttpError(400, 'Horario fora do expediente');
   }
 
   await ensureSlotsAvailable(requiredSlots);
@@ -350,7 +369,6 @@ export async function createAppointment(payload: CreateAppointmentInput) {
     throw error;
   }
 
-  // Envia confirmação pelo WhatsApp sem bloquear a resposta da API.
   void notifyAppointmentConfirmation(appointment, haircut);
 
   return appointment;
@@ -391,10 +409,10 @@ export async function listCustomerAppointments(
 
   return appointments.map((appointment) => ({
     id: appointment.id,
-    startTime: appointment.startTime.toISOString(),
+    startTime: toBrazilIsoString(appointment.startTime),
     haircutType: appointment.haircutType,
     status: appointment.status as CustomerAppointmentSummary['status'],
-    cancelledAt: appointment.cancelledAt ? appointment.cancelledAt.toISOString() : null,
+    cancelledAt: appointment.cancelledAt ? toBrazilIsoString(appointment.cancelledAt) : null,
     cancelReason: appointment.cancelReason ?? null,
     rescheduledFromId: appointment.rescheduledFromId ?? null,
     rescheduledToId: appointment.rescheduledToId ?? null,
@@ -421,22 +439,18 @@ export async function listAppointmentsByPhone(
 
 export async function getAvailability(dateISO: string | undefined): Promise<SlotAvailability[]> {
   if (!dateISO) {
-    throw new HttpError(400, 'Informe uma data válida (YYYY-MM-DD)');
+    throw new HttpError(400, 'Informe uma data valida (YYYY-MM-DD)');
   }
 
-  let date: Date;
+  let dayStart: Date;
+  let dayEnd: Date;
   try {
-    date = parseISO(dateISO);
-  } catch (error) {
-    throw new HttpError(400, 'Formato de data inválido');
+    const range = getBrazilDayUtcRange(dateISO);
+    dayStart = range.startUtc;
+    dayEnd = range.endUtc;
+  } catch {
+    throw new HttpError(400, 'Formato de data invalido');
   }
-
-  if (Number.isNaN(date.getTime())) {
-    throw new HttpError(400, 'Formato de data inválido');
-  }
-
-  const dayStart = startOfDay(date);
-  const dayEnd = endOfDay(date);
 
   const [appointments, blockedSlots] = await Promise.all([
     prisma.appointment.findMany({
@@ -487,44 +501,68 @@ export async function getAvailability(dateISO: string | undefined): Promise<Slot
     }
 
     return {
-      startTime: slot.toISOString(),
+      startTime: toBrazilIsoString(slot),
       status,
     };
   });
 }
 
 export function normalizeToBusinessSlot(date: Date): Date | null {
-  const businessDay = startOfDay(date);
-  const openingTime = set(businessDay, { hours: BUSINESS_START_HOUR });
-  const closingTime = set(businessDay, { hours: BUSINESS_END_HOUR, minutes: BUSINESS_END_MINUTE });
+  const zonedDate = toBrazilDateTime(date).set({ second: 0, millisecond: 0 });
+  const businessDay = zonedDate.startOf('day');
+  const openingTime = businessDay.set({
+    hour: BUSINESS_START_HOUR,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
+  const closingTime = businessDay.set({
+    hour: BUSINESS_END_HOUR,
+    minute: BUSINESS_END_MINUTE,
+    second: 0,
+    millisecond: 0,
+  });
 
-  if (isLunchBreakSlot(date)) {
+  if (isLunchBreakSlot(zonedDate)) {
     return null;
   }
 
-  if (isBefore(date, openingTime) || !isBefore(date, addMinutes(closingTime, SLOT_INTERVAL_MINUTES))) {
+  if (
+    zonedDate.toMillis() < openingTime.toMillis() ||
+    zonedDate.toMillis() > closingTime.toMillis()
+  ) {
     return null;
   }
 
-  const slots = generateDailySlots(businessDay);
+  const targetSlot = zonedDate.toUTC().toJSDate();
+  const slots = generateDailySlots(targetSlot);
 
-  return (
-    slots.find((slot) => slot.getTime() === date.getTime()) ?? null
-  );
+  return slots.find((slot) => slot.getTime() === targetSlot.getTime()) ?? null;
 }
 
 export function generateDailySlots(baseDate: Date): Date[] {
-  const start = set(baseDate, { hours: BUSINESS_START_HOUR, minutes: 0, seconds: 0, milliseconds: 0 });
-  const end = set(baseDate, { hours: BUSINESS_END_HOUR, minutes: BUSINESS_END_MINUTE, seconds: 0, milliseconds: 0 });
+  const businessDay = toBrazilDateTime(baseDate).startOf('day');
+  const start = businessDay.set({
+    hour: BUSINESS_START_HOUR,
+    minute: 0,
+    second: 0,
+    millisecond: 0,
+  });
+  const end = businessDay.set({
+    hour: BUSINESS_END_HOUR,
+    minute: BUSINESS_END_MINUTE,
+    second: 0,
+    millisecond: 0,
+  });
 
   const slots: Date[] = [];
   let current = start;
 
-  while (isBefore(current, end) || current.getTime() === end.getTime()) {
+  while (current.toMillis() <= end.toMillis()) {
     if (!isLunchBreakSlot(current)) {
-      slots.push(current);
+      slots.push(current.toUTC().toJSDate());
     }
-    current = addMinutes(current, SLOT_INTERVAL_MINUTES);
+    current = current.plus({ minutes: SLOT_INTERVAL_MINUTES });
   }
 
   return slots;
@@ -532,14 +570,17 @@ export function generateDailySlots(baseDate: Date): Date[] {
 
 function computeSequentialSlots(startSlot: Date, durationMinutes: number): Date[] {
   const slotsNeeded = Math.max(1, Math.ceil(durationMinutes / SLOT_INTERVAL_MINUTES));
-  const businessSlots = generateDailySlots(startOfDay(startSlot));
+  const businessSlots = generateDailySlots(startSlot);
   const slotMap = new Map<number, Date>(
     businessSlots.map((candidate) => [candidate.getTime(), candidate]),
   );
 
   const result: Date[] = [];
   for (let index = 0; index < slotsNeeded; index += 1) {
-    const targetTime = addMinutes(startSlot, SLOT_INTERVAL_MINUTES * index).getTime();
+    const targetTime = DateTime.fromJSDate(startSlot, { zone: 'utc' })
+      .plus({ minutes: SLOT_INTERVAL_MINUTES * index })
+      .toJSDate()
+      .getTime();
     const match = slotMap.get(targetTime);
     if (!match) {
       break;
@@ -556,8 +597,9 @@ export async function ensureSlotsAvailable(slots: Date[], prismaClient: PrismaLi
   }
 
   const requestedTimes = new Set(slots.map((slot) => slot.getTime()));
-  const dayStart = startOfDay(slots[0]);
-  const dayEnd = endOfDay(slots[0]);
+  const businessDay = toBrazilDateTime(slots[0]).startOf('day');
+  const dayStart = businessDay.toUTC().toJSDate();
+  const dayEnd = businessDay.endOf('day').toUTC().toJSDate();
 
   const [appointments, blocked] = await Promise.all([
     prismaClient.appointment.findMany({

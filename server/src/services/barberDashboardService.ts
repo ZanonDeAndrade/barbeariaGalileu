@@ -2,8 +2,9 @@ import type { PrismaClient, Prisma } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
+import { BRAZIL_TIME_ZONE } from '../utils/dateTime.js';
 
-const DEFAULT_TIME_ZONE = 'America/Sao_Paulo';
+const DEFAULT_TIME_ZONE = BRAZIL_TIME_ZONE;
 
 export type AppointmentsSummary = {
   month: string;

@@ -9,6 +9,7 @@ import {
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { bulkBlockSlotsSchema, bulkUnblockSlotsSchema } from '../schemas/blockedSlots.schema.js';
 import { performance } from 'perf_hooks';
+import { serializeBlockedSlot, serializeBlockedSlots } from '../utils/serializers.js';
 
 export const listBlockedSlotsHandler = asyncHandler(async (req: Request, res: Response) => {
   const reqId = (req as any).requestId ?? 'no-reqid';
@@ -22,13 +23,13 @@ export const listBlockedSlotsHandler = asyncHandler(async (req: Request, res: Re
   const blockedSlots = await listBlockedSlots(dateStr);
   console.log(`[${reqId}] blockedSlots after-service +${(performance.now() - start).toFixed(1)}ms`);
 
-  res.json(blockedSlots);
+  res.json(serializeBlockedSlots(blockedSlots));
   console.log(`[${reqId}] blockedSlots before-response +${(performance.now() - start).toFixed(1)}ms`);
 });
 
 export const createBlockedSlotHandler = asyncHandler(async (req: Request, res: Response) => {
   const blockedSlot = await createBlockedSlot(req.body);
-  res.status(201).json(blockedSlot);
+  res.status(201).json(serializeBlockedSlot(blockedSlot));
 });
 
 export const removeBlockedSlotHandler = asyncHandler(async (req: Request, res: Response) => {

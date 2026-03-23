@@ -1,6 +1,6 @@
 import type { Appointment } from '@prisma/client';
-import { format } from 'date-fns';
 import type { HaircutOption } from '../types/haircut.js';
+import { toBrazilCalendarDate, toBrazilTime } from '../utils/dateTime.js';
 
 interface MessagingConfig {
   token: string;
@@ -61,8 +61,8 @@ function sanitizePhoneNumber(raw: string): string | null {
 }
 
 function buildMessageBody(appointment: Appointment, haircut: HaircutOption) {
-  const scheduledDate = format(appointment.startTime, 'dd/MM/yyyy');
-  const scheduledTime = format(appointment.startTime, 'HH:mm');
+  const scheduledDate = toBrazilCalendarDate(appointment.startTime);
+  const scheduledTime = toBrazilTime(appointment.startTime);
   const value = formatPriceBRL(haircut.priceCents);
 
   return [

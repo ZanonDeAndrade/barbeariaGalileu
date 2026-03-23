@@ -38,7 +38,7 @@ export async function processCardPaymentHandler(req: Request, res: Response) {
 
   const appointmentToCreate = {
     ...appointment,
-    startTime: new Date(appointment.startTime),
+    startTime: appointment.startTime,
   };
 
   const created = await createAppointment(appointmentToCreate);
@@ -105,7 +105,7 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
 
   const appointmentToCreate = {
     ...appointment,
-    startTime: new Date(appointment.startTime),
+    startTime: appointment.startTime,
   };
 
   const created = await createAppointment(appointmentToCreate);
@@ -153,10 +153,10 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
 }
 
 export async function createCashAppointmentHandler(req: Request, res: Response) {
-  const appointment = appointmentDraftSchema.parse(req.body);
+  const appointment = appointmentDraftSchema.parse(req.body) as AppointmentDraft;
   const appointmentToCreate = {
     ...appointment,
-    startTime: new Date(appointment.startTime),
+    startTime: appointment.startTime,
   };
   const created = await createAppointment(appointmentToCreate);
   await markAppointmentPayment(created.id, { method: 'dinheiro', status: 'pending' });
@@ -215,11 +215,11 @@ export async function paymentWebhookHandler(req: Request, res: Response) {
 
     // Fallback (pagamentos antigos): metadata.appointment com o draft.
     if (status === 'approved' && (metadata as any)?.appointment) {
-      const appointment = (metadata as any).appointment as AppointmentDraft;
+      const appointment = appointmentDraftSchema.parse((metadata as any).appointment) as AppointmentDraft;
       try {
         const appointmentToCreate = {
           ...appointment,
-          startTime: new Date(appointment.startTime),
+          startTime: appointment.startTime,
         };
         const created = await createAppointment(appointmentToCreate);
         await markAppointmentPayment(created.id, {

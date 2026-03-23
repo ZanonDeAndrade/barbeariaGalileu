@@ -1,38 +1,51 @@
-import { endOfDay, parseISO, startOfDay } from 'date-fns';
 import { z } from 'zod';
 import { prisma } from '../config/prisma.js';
 import { HttpError } from '../utils/httpError.js';
+import { getBrazilDayUtcRange, parseBrazilDateTimeToUtcDate } from '../utils/dateTime.js';
 import { ensureSlotsAvailable, normalizeToBusinessSlot } from './appointmentService.js';
 
+export type CreateBlockedSlotInput = {
+  startTime: string | Date;
+  reason?: string;
+};
+
 const createBlockedSlotSchema = z.object({
-  startTime: z.string().transform((value) => {
-    const parsed = parseISO(value);
-    if (Number.isNaN(parsed.getTime())) {
+  startTime: z.string().transform<Date>((value) => {
+    try {
+      return parseBrazilDateTimeToUtcDate(value, 'startTime');
+    } catch {
       throw new z.ZodError([
         {
           code: z.ZodIssueCode.custom,
-          message: 'Data/hora inválida',
+          message: 'Data/hora invalida',
           path: ['startTime'],
         },
       ]);
     }
-    return parsed;
   }),
-  reason: z.string().max(140, 'Máximo de 140 caracteres').optional(),
+  reason: z.string().max(140, 'Maximo de 140 caracteres').optional(),
 });
-
-export type CreateBlockedSlotInput = z.infer<typeof createBlockedSlotSchema>;
 
 type PrismaLike = typeof prisma;
 
 export async function listBlockedSlots(dateISO?: string) {
   const filters = dateISO
-    ? {
-        startTime: {
-          gte: startOfDay(parseISO(dateISO)),
-          lte: endOfDay(parseISO(dateISO)),
-        },
-      }
+    ? (() => {
+        let startUtc: Date;
+        let endUtc: Date;
+        try {
+          ({ startUtc, endUtc } = getBrazilDayUtcRange(dateISO));
+        } catch {
+          throw new HttpError(400, 'Formato de data invalido');
+        }
+
+        return {
+          startTime: {
+            gte: startUtc,
+            lte: endUtc,
+          },
+        };
+      })()
     : undefined;
 
   return prisma.blockedSlot.findMany({
@@ -48,7 +61,7 @@ export async function createBlockedSlot(payload: CreateBlockedSlotInput) {
 
   const slot = normalizeToBusinessSlot(data.startTime);
   if (!slot) {
-    throw new HttpError(400, 'Horário fora do expediente');
+    throw new HttpError(400, 'Horario fora do expediente');
   }
 
   await ensureSlotsAvailable([slot]);
@@ -66,8 +79,8 @@ export async function removeBlockedSlot(id: string) {
     await prisma.blockedSlot.delete({
       where: { id },
     });
-  } catch (error) {
-    throw new HttpError(404, 'Bloqueio não encontrado');
+  } catch {
+    throw new HttpError(404, 'Bloqueio nao encontrado');
   }
 }
 
@@ -83,8 +96,7 @@ type BulkResult = {
 };
 
 function parseDateTime(date: string, time: string) {
-  // Mantém a mesma interpretação local usada no fluxo atual (sem fuso explícito)
-  return parseISO(`${date}T${time}`);
+  return parseBrazilDateTimeToUtcDate(`${date}T${time}`, 'startTime');
 }
 
 export async function createBlockedSlotsBulk(
@@ -98,8 +110,10 @@ export async function createBlockedSlotsBulk(
   const skipped: BulkResult['skipped'] = [];
 
   for (const time of uniqueTimes) {
-    const parsed = parseDateTime(payload.date, time);
-    if (Number.isNaN(parsed.getTime())) {
+    let parsed: Date;
+    try {
+      parsed = parseDateTime(payload.date, time);
+    } catch {
       skipped.push({ time, reason: 'invalid_slot' });
       continue;
     }
@@ -184,16 +198,20 @@ export async function deleteBlockedSlotsBulk(
   const invalidTimes: string[] = [];
 
   for (const time of uniqueTimes) {
-    const parsed = parseDateTime(payload.date, time);
-    if (Number.isNaN(parsed.getTime())) {
+    let parsed: Date;
+    try {
+      parsed = parseDateTime(payload.date, time);
+    } catch {
       invalidTimes.push(time);
       continue;
     }
+
     const normalized = normalizeToBusinessSlot(parsed);
     if (!normalized) {
       invalidTimes.push(time);
       continue;
     }
+
     validSlots.push({ time, startTime: normalized });
   }
 

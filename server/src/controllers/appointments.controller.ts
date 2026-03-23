@@ -18,6 +18,11 @@ import {
 } from '../services/appointmentService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { performance } from 'perf_hooks';
+import {
+  serializeAppointment,
+  serializeAppointments,
+  serializeRescheduleResult,
+} from '../utils/serializers.js';
 
 export const getHaircutsHandler = asyncHandler(async (_req: Request, res: Response) => {
   const reqId = (_req as any).requestId ?? 'no-reqid';
@@ -62,7 +67,7 @@ export const createAppointmentHandler = asyncHandler(async (req: Request, res: R
 
 export const listAppointmentsHandler = asyncHandler(async (_req: Request, res: Response) => {
   const appointments = await listAppointments();
-  res.json(appointments);
+  res.json(serializeAppointments(appointments));
 });
 
 export const cancelAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -78,7 +83,7 @@ export const cancelAppointmentHandler = asyncHandler(async (req: Request, res: R
   const { reason } = bodySchema.parse(req.body ?? {});
 
   const appointment = await cancelAppointment(id, { reason });
-  res.json(appointment);
+  res.json(serializeAppointment(appointment));
 });
 
 export const cancelAppointmentByCustomerHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -90,7 +95,7 @@ export const cancelAppointmentByCustomerHandler = asyncHandler(async (req: Reque
   const { phone, reason } = cancelByCustomerBodySchema.parse(req.body ?? {});
 
   const appointment = await cancelAppointmentByCustomer(id, { phone, reason });
-  res.json(appointment);
+  res.json(serializeAppointment(appointment));
 });
 
 export const rescheduleAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -102,7 +107,7 @@ export const rescheduleAppointmentHandler = asyncHandler(async (req: Request, re
   const { phone, newStartTime, reason } = rescheduleAppointmentBodySchema.parse(req.body ?? {});
 
   const result = await rescheduleAppointmentByCustomer(id, { phone, newStartTime, reason });
-  res.json(result);
+  res.json(serializeRescheduleResult(result));
 });
 
 export const listAppointmentsByPhoneHandler = asyncHandler(async (req: Request, res: Response) => {
