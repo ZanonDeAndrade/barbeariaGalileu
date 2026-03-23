@@ -22,7 +22,7 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
 
 1. Instalar dependências em `server/`, `customer-app/` e `barber-app/` com `npm install`.
 2. Em `server/`, configurar o arquivo `.env` (ver `.env.example`) e executar `npx prisma migrate dev`.
-3. Rodar `npm run dev` em cada frontend (cliente na porta 5173, barbeiro na porta 5174) e `npm run dev` no backend (porta 4000).
+3. Rodar `npm run dev` em cada frontend (cliente na porta 5173, barbeiro na porta 5174) e `npm run dev` no backend (porta 3000, ou `PORT` configurada no ambiente).
 
 ## Backend (`server/`)
 

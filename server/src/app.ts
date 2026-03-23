@@ -11,6 +11,9 @@ dotenv.config();
 export function createApp() {
   const app = express();
 
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+
   app.use(requestTimer);
   app.use(corsMiddleware);
   app.options('*', corsMiddleware);

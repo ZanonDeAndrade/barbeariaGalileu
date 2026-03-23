@@ -10,6 +10,9 @@ type Counter = {
   resetAt: number;
 };
 
+const rateLimitStoreMode =
+  process.env.RATE_LIMIT_STORE ?? (process.env.NODE_ENV === 'production' ? 'none' : 'memory');
+
 function getClientIp(req: Request): string {
   const forwarded = req.headers['x-forwarded-for'];
   const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
@@ -18,6 +21,10 @@ function getClientIp(req: Request): string {
 }
 
 export function rateLimit(options: RateLimitOptions) {
+  if (rateLimitStoreMode !== 'memory') {
+    return (_req: Request, _res: Response, next: NextFunction) => next();
+  }
+
   const store = new Map<string, Counter>();
 
   return (req: Request, res: Response, next: NextFunction) => {
