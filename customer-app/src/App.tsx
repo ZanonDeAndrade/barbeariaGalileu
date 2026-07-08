@@ -1,14 +1,7 @@
 import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
-import { AppUnavailableScreen } from './components/AppUnavailableScreen';
 import CustomerBooking from './pages/CustomerBooking';
 
-const APP_UNAVAILABLE = false;
-
 function App() {
-  if (APP_UNAVAILABLE) {
-    return <AppUnavailableScreen />;
-  }
-
   return (
     <div className="app-shell">
       <header className="app-header">

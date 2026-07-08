@@ -12,3 +12,4 @@ server/prisma/dev.db
 customer-app/dist
 barber-app/dist
 .DS_Store
+.claude/
