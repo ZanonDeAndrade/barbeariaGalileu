@@ -1,12 +1,14 @@
 import { format } from 'date-fns';
 import { useState } from 'react';
 import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
+import { AppUnavailableScreen } from './components/AppUnavailableScreen';
 import BarberDashboard from './pages/BarberDashboard';
 import BlockSchedulePage from './pages/BlockSchedulePage';
 import MonthlyMetricsPage from './pages/MonthlyMetricsPage';
 
 type ActivePage = 'dashboard' | 'block' | 'monthly-metrics';
 
+const APP_UNAVAILABLE = false;
 const today = format(new Date(), 'yyyy-MM-dd');
 
 function getInitialDate(): string {
@@ -23,7 +25,7 @@ function getInitialDate(): string {
   return today;
 }
 
-function App() {
+function AvailableApp() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(getInitialDate);
 
@@ -63,6 +65,10 @@ function App() {
       </footer>
     </div>
   );
+}
+
+function App() {
+  return APP_UNAVAILABLE ? <AppUnavailableScreen /> : <AvailableApp />;
 }
 
 export default App;
