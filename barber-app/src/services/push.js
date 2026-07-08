@@ -2,7 +2,8 @@ import { api, apiBaseURL } from './api';
 const PUSH_CONTEXT_CACHE = 'push-config';
 const PUSH_CONTEXT_KEY = '/__push_context__';
 function barberApiKey() {
-    return import.meta.env.VITE_BARBER_API_KEY;
+    const key = import.meta.env.VITE_BARBER_API_KEY;
+    return typeof key === 'string' && key.trim() ? key.trim() : undefined;
 }
 export function isIos() {
     if (typeof navigator === 'undefined')
@@ -150,6 +151,10 @@ export async function enablePush() {
     if (!publicKey) {
         return { ok: false, reason: 'not-configured' };
     }
+    const apiKey = barberApiKey();
+    if (!apiKey) {
+        return { ok: false, reason: 'barber-key-missing' };
+    }
     try {
         const registration = await getRegistration();
         let subscription = await registration.pushManager.getSubscription();
@@ -162,11 +167,14 @@ export async function enablePush() {
         await api.post('/push/barber/subscribe', {
             subscription: subscription.toJSON(),
             userAgent: navigator.userAgent,
-        }, barberApiKey() ? { headers: { 'x-barber-api-key': barberApiKey() } } : undefined);
+        }, { headers: { 'x-barber-api-key': apiKey } });
         await storePushContext(publicKey);
         return { ok: true };
     }
     catch (error) {
+        if (error?.response?.status === 403) {
+            return { ok: false, reason: 'barber-auth-failed' };
+        }
         return { ok: false, reason: 'error' };
     }
 }

@@ -11,6 +11,10 @@ function messageForFailure(reason) {
             return 'Adicione o painel à Tela de Início do seu iPhone ou iPad para ativar as notificações.';
         case 'not-configured':
             return 'As notificações ainda não estão disponíveis. Tente novamente mais tarde.';
+        case 'barber-key-missing':
+            return 'A chave do painel do barbeiro não está configurada neste deploy. Configure VITE_BARBER_API_KEY e publique novamente.';
+        case 'barber-auth-failed':
+            return 'A chave do painel do barbeiro está incorreta neste deploy. Confira VITE_BARBER_API_KEY e BARBER_API_KEY.';
         default:
             return 'Não foi possível ativar as notificações. Tente novamente.';
     }

@@ -11,11 +11,19 @@ export type EnableResult =
   | { ok: true }
   | {
       ok: false;
-      reason: 'unsupported' | 'ios-needs-install' | 'permission-denied' | 'not-configured' | 'error';
+      reason:
+        | 'unsupported'
+        | 'ios-needs-install'
+        | 'permission-denied'
+        | 'not-configured'
+        | 'barber-key-missing'
+        | 'barber-auth-failed'
+        | 'error';
     };
 
 function barberApiKey(): string | undefined {
-  return (import.meta as any).env.VITE_BARBER_API_KEY;
+  const key = (import.meta as any).env.VITE_BARBER_API_KEY;
+  return typeof key === 'string' && key.trim() ? key.trim() : undefined;
 }
 
 export function isIos(): boolean {
@@ -176,6 +184,11 @@ export async function enablePush(): Promise<EnableResult> {
     return { ok: false, reason: 'not-configured' };
   }
 
+  const apiKey = barberApiKey();
+  if (!apiKey) {
+    return { ok: false, reason: 'barber-key-missing' };
+  }
+
   try {
     const registration = await getRegistration();
     let subscription = await registration.pushManager.getSubscription();
@@ -192,12 +205,15 @@ export async function enablePush(): Promise<EnableResult> {
         subscription: subscription.toJSON(),
         userAgent: navigator.userAgent,
       },
-      barberApiKey() ? { headers: { 'x-barber-api-key': barberApiKey() } } : undefined,
+      { headers: { 'x-barber-api-key': apiKey } },
     );
 
     await storePushContext(publicKey);
     return { ok: true };
   } catch (error) {
+    if ((error as any)?.response?.status === 403) {
+      return { ok: false, reason: 'barber-auth-failed' };
+    }
     return { ok: false, reason: 'error' };
   }
 }

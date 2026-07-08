@@ -10,7 +10,7 @@ export function requireBarberKeyStrict(req: Request, res: Response, next: NextFu
   const expectedKey = process.env.BARBER_API_KEY;
 
   if (!expectedKey) {
-    return res.status(403).json({ message: 'Acesso negado' });
+    return res.status(403).json({ message: 'Acesso negado', code: 'BARBER_KEY_MISSING' });
   }
 
   const providedKey = req.header('x-barber-api-key');
@@ -18,5 +18,5 @@ export function requireBarberKeyStrict(req: Request, res: Response, next: NextFu
     return next();
   }
 
-  return res.status(403).json({ message: 'Acesso negado' });
+  return res.status(403).json({ message: 'Acesso negado', code: 'BARBER_KEY_INVALID' });
 }
