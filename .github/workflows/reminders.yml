@@ -1,0 +1,28 @@
+name: Push Reminders
+
+# Dispara a rotina de lembretes no backend. Como o Cloud Run escala a zero,
+# um cron externo garante o processamento mesmo sem o scheduler in-process.
+# Requer os secrets do repositorio:
+#   API_BASE_URL  -> ex: https://barbearia-galileu-xxxx.run.app/api
+#   PUSH_CRON_KEY -> mesma chave definida em PUSH_CRON_KEY no backend
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  run-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reminder routine
+        run: |
+          if [ -z "${{ secrets.API_BASE_URL }}" ] || [ -z "${{ secrets.PUSH_CRON_KEY }}" ]; then
+            echo "API_BASE_URL ou PUSH_CRON_KEY não configurados. Pulando."
+            exit 0
+          fi
+          echo "Disparando lembretes..."
+          curl -s -X POST \
+            -H "x-cron-key: ${{ secrets.PUSH_CRON_KEY }}" \
+            -o /dev/null -w "%{http_code}\n" \
+            "${{ secrets.API_BASE_URL }}/push/run-reminders"

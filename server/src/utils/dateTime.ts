@@ -1,6 +1,9 @@
 import { DateTime } from 'luxon';
 
-export const BRAZIL_TIME_ZONE = 'America/Sao_Paulo';
+// Fuso horario do sistema, centralizado em APP_TIMEZONE (default America/Sao_Paulo).
+// Em producao (Cloud Run) a variavel e lida do ambiente; localmente, mantenha o
+// default ou defina APP_TIMEZONE como variavel real de ambiente.
+export const BRAZIL_TIME_ZONE = process.env.APP_TIMEZONE?.trim() || 'America/Sao_Paulo';
 
 const ISO_DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ISO_TIME_ZONE_SUFFIX_RE = /(Z|[+-]\d{2}:\d{2})$/i;

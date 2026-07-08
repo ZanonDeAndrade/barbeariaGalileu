@@ -8,6 +8,7 @@ import {
   markAppointmentPayment,
 } from '../services/payments.service.js';
 import { createAppointment } from '../services/appointmentService.js';
+import { notifyNewAppointment } from '../services/appointmentNotificationService.js';
 import { prisma } from '../config/prisma.js';
 
 const appointmentDraftSchema = z.object({
@@ -82,6 +83,9 @@ export async function processCardPaymentHandler(req: Request, res: Response) {
     mpPaymentId: paymentId,
   });
 
+  // Agendamento confirmado (cartao aprovado/pendente): notifica barbeiro e cliente.
+  void notifyNewAppointment(created);
+
   return res.json({ status: mpStatus, mpPaymentId: paymentId, appointmentId: created.id });
 }
 
@@ -142,6 +146,9 @@ export async function createPixPaymentHandler(req: Request, res: Response) {
     mpPaymentId: paymentId,
   });
 
+  // Agendamento reservado (PIX gerado): notifica barbeiro e cliente.
+  void notifyNewAppointment(created);
+
   return res.json({
     status: mpStatus,
     mpPaymentId: paymentId,
@@ -160,6 +167,10 @@ export async function createCashAppointmentHandler(req: Request, res: Response) 
   };
   const created = await createAppointment(appointmentToCreate);
   await markAppointmentPayment(created.id, { method: 'dinheiro', status: 'pending' });
+
+  // Agendamento em dinheiro: notifica barbeiro e cliente.
+  void notifyNewAppointment(created);
+
   res.status(201).json({ appointmentId: created.id, status: 'pending' });
 }
 

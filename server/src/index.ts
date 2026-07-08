@@ -1,5 +1,6 @@
 import { disconnectPrisma } from './config/prisma.js';
 import { app } from './app.js';
+import { startReminderScheduler, stopReminderScheduler } from './services/reminderService.js';
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '0.0.0.0';
@@ -27,6 +28,7 @@ let isShuttingDown = false;
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`[server] listening on ${HOST}:${PORT}`);
+  startReminderScheduler();
 });
 
 server.keepAliveTimeout = 65_000;
@@ -39,6 +41,8 @@ async function gracefulShutdown(reason: string, exitCode = 0) {
 
   isShuttingDown = true;
   console.log(`[server] shutdown started (${reason})`);
+
+  stopReminderScheduler();
 
   const forceShutdownTimer = setTimeout(() => {
     console.error(`[server] forced shutdown after ${shutdownTimeoutMs}ms`);

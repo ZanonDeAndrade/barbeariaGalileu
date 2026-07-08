@@ -23,6 +23,11 @@ import {
   serializeAppointments,
   serializeRescheduleResult,
 } from '../utils/serializers.js';
+import {
+  notifyAppointmentCancelled,
+  notifyAppointmentRescheduled,
+  notifyNewAppointment,
+} from '../services/appointmentNotificationService.js';
 
 export const getHaircutsHandler = asyncHandler(async (_req: Request, res: Response) => {
   const reqId = (_req as any).requestId ?? 'no-reqid';
@@ -55,6 +60,10 @@ export const getAvailabilityHandler = asyncHandler(async (req: Request, res: Res
 export const createAppointmentHandler = asyncHandler(async (req: Request, res: Response) => {
   const appointment = await createAppointment(req.body);
 
+  // Notifica barbeiro (novo agendamento) e cliente (confirmacao).
+  // Fire-and-forget: falha de push nunca desfaz o agendamento.
+  void notifyNewAppointment(appointment);
+
   const appointments = appointment.customerId
     ? await listCustomerAppointments(appointment.customerId)
     : [];
@@ -83,6 +92,10 @@ export const cancelAppointmentHandler = asyncHandler(async (req: Request, res: R
   const { reason } = bodySchema.parse(req.body ?? {});
 
   const appointment = await cancelAppointment(id, { reason });
+
+  // Barbeiro/admin cancelou -> notifica o cliente.
+  void notifyAppointmentCancelled(appointment);
+
   res.json(serializeAppointment(appointment));
 });
 
@@ -95,6 +108,10 @@ export const cancelAppointmentByCustomerHandler = asyncHandler(async (req: Reque
   const { phone, reason } = cancelByCustomerBodySchema.parse(req.body ?? {});
 
   const appointment = await cancelAppointmentByCustomer(id, { phone, reason });
+
+  // Cliente cancelou -> notifica o barbeiro.
+  void notifyAppointmentCancelled(appointment);
+
   res.json(serializeAppointment(appointment));
 });
 
@@ -107,6 +124,15 @@ export const rescheduleAppointmentHandler = asyncHandler(async (req: Request, re
   const { phone, newStartTime, reason } = rescheduleAppointmentBodySchema.parse(req.body ?? {});
 
   const result = await rescheduleAppointmentByCustomer(id, { phone, newStartTime, reason });
+
+  // Reagendamento -> notifica o barbeiro com horario antigo e novo.
+  // O agendamento antigo fica CANCELLED (excluido da rotina de lembretes) e
+  // os lembretes do novo horario sao criados sob o id do novo agendamento.
+  void notifyAppointmentRescheduled({
+    oldAppointment: result.oldAppointment,
+    newAppointment: result.newAppointment,
+  });
+
   res.json(serializeRescheduleResult(result));
 });
 
