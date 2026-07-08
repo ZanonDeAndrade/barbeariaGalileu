@@ -12,6 +12,17 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   });
 }
 
+if ('serviceWorker' in navigator) {
+  // Fallback do clique em notificacao: quando o SW nao consegue navegar a
+  // janela diretamente, ele envia PUSH_NAVIGATE com a URL de destino.
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    const data = event.data as { type?: string; url?: string } | null;
+    if (data?.type === 'PUSH_NAVIGATE' && typeof data.url === 'string') {
+      window.location.assign(data.url);
+    }
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />

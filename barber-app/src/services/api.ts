@@ -12,6 +12,8 @@ const baseURL = (() => {
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
 })();
 
+export const apiBaseURL = baseURL;
+
 const api = axios.create({
   baseURL,
 });

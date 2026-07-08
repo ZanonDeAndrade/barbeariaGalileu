@@ -9,9 +9,23 @@ type ActivePage = 'dashboard' | 'block' | 'monthly-metrics';
 
 const today = format(new Date(), 'yyyy-MM-dd');
 
+function getInitialDate(): string {
+  if (typeof window === 'undefined') return today;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return dateParam;
+    }
+  } catch {
+    // ignore
+  }
+  return today;
+}
+
 function App() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
-  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [selectedDate, setSelectedDate] = useState<string>(getInitialDate);
 
   const handleNavigateToBlocks = () => setActivePage('block');
   const handleNavigateToMonthlyMetrics = () => setActivePage('monthly-metrics');

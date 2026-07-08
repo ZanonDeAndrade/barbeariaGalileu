@@ -14,6 +14,7 @@ model Appointment {
   customerPhone   String
   customerId      String?
   customer        Customer? @relation(fields: [customerId], references: [id])
+  notificationLogs NotificationLog[]
   haircutType     String
   notes           String?
   startTime       DateTime
@@ -63,11 +64,67 @@ model BlockedSlot {
 }
 
 model Customer {
-  id           String        @id @default(cuid())
-  phone        String        @unique
-  appointments Appointment[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                String             @id @default(cuid())
+  phone             String             @unique
+  appointments      Appointment[]
+  pushSubscriptions PushSubscription[]
+  notificationLogs  NotificationLog[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model PushSubscription {
+  id         String       @id @default(cuid())
+  userType   PushUserType
+  customerId String?
+  customer   Customer?    @relation(fields: [customerId], references: [id])
+  endpoint   String       @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([userType, isActive])
+  @@index([customerId, isActive])
+}
+
+enum PushUserType {
+  BARBER
+  CUSTOMER
+}
+
+model NotificationLog {
+  id            String             @id @default(cuid())
+  appointmentId String
+  appointment   Appointment        @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  recipientType PushUserType
+  customerId    String?
+  customer      Customer?          @relation(fields: [customerId], references: [id])
+  type          NotificationType
+  status        NotificationStatus @default(PENDING)
+  sentAt        DateTime?
+  errorMessage  String?
+  createdAt     DateTime           @default(now())
+
+  @@unique([appointmentId, recipientType, type])
+  @@index([status, createdAt])
+}
+
+enum NotificationType {
+  NEW_APPOINTMENT
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_RESCHEDULED
+  REMINDER_UPCOMING
+  REMINDER_DAY_BEFORE
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
 }
 
 model WebhookEvent {

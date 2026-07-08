@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEventHandler } from 'react';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
 import { MyAppointments } from '../components/MyAppointments';
+import { NotificationSettings } from '../components/NotificationSettings';
 import Pagamento from '../components/Pagamento';
 import { api } from '../services/api';
 import type {
@@ -13,8 +14,21 @@ import type {
 
 const today = format(new Date(), 'yyyy-MM-dd');
 
+function getInitialTab(): 'booking' | 'my-appointments' {
+  if (typeof window === 'undefined') return 'booking';
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'my-appointments') {
+      return 'my-appointments';
+    }
+  } catch {
+    // ignore
+  }
+  return 'booking';
+}
+
 function CustomerBooking() {
-  const [activeTab, setActiveTab] = useState<'booking' | 'my-appointments'>('booking');
+  const [activeTab, setActiveTab] = useState<'booking' | 'my-appointments'>(getInitialTab);
   const [haircuts, setHaircuts] = useState<HaircutOption[]>([]);
   const [selectedHaircut, setSelectedHaircut] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(today);
@@ -344,6 +358,8 @@ function CustomerBooking() {
           <MyAppointments haircuts={haircuts} initialPhone={customerPhone} autoFocusPhone />
         )}
       </section>
+
+      <NotificationSettings phone={customerPhone} />
     </div>
   );
 }

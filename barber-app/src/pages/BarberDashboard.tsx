@@ -2,6 +2,7 @@ import { format, parseISO } from 'date-fns';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEventHandler } from 'react';
 import { api } from '../services/api';
+import { NotificationSettings } from '../components/NotificationSettings';
 import type { Appointment, HaircutOption } from '../types';
 
 type BarberDashboardProps = {
@@ -318,6 +319,8 @@ function BarberDashboard({
           </div>
         )}
       </section>
+
+      <NotificationSettings />
 
       {feedback && <div className={`status-banner ${feedback.type}`}>{feedback.message}</div>}
 
