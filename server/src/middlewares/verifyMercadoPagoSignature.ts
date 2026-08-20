@@ -1,6 +1,5 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { isProduction } from '../config/env.js';
 
 /**
  * Valida a assinatura x-signature do Mercado Pago.
@@ -11,15 +10,31 @@ import { isProduction } from '../config/env.js';
  *
  * Comportamento quando MP_WEBHOOK_SECRET nao esta configurada:
  *
- *   producao  -> FAIL-CLOSED. Responde 503 e NUNCA executa o handler. Na
- *                pratica esta ramificacao e inalcancavel, porque
- *                assertProductionEnv() ja impede o processo de subir sem o
- *                segredo; ela existe como defesa em profundidade.
- *   dev/teste -> segue, apenas avisando, para nao exigir o segredo real em
- *                ambiente local.
+ *   TEMPORARIO, por decisao explicita: a requisicao segue com um warning, em
+ *   vez de ser recusada. Isso mantem exatamente o comportamento que ja existia
+ *   em producao (onde o webhook nunca validou assinatura), para nao atrasar a
+ *   publicacao da correcao de autorizacao das rotas.
+ *
+ *   O que sustenta a seguranca enquanto isso: o handler NAO trata o corpo do
+ *   POST como verdade. Ele reconsulta o pagamento na API oficial do Mercado
+ *   Pago (fetchPayment) e deriva status/metodo/valor da resposta do provedor
+ *   antes de qualquer alteracao, e a tabela WebhookEvent mantem a idempotencia.
+ *   O corpo so e usado para extrair o ID a consultar.
+ *
+ *   Quando MP_WEBHOOK_SECRET esta presente, a validacao e obrigatoria e
+ *   assinatura ausente/invalida/expirada e recusada com 401.
+ *
+ *   PENDENCIA: configurar MP_WEBHOOK_SECRET. Ver PENDENCIA-SEGURANCA.md.
  */
 
 const MAX_SIGNATURE_AGE_SECONDS = 10 * 60;
+
+let warnedMissingSecret = false;
+
+/** Usado apenas pelos testes. */
+export function resetSignatureWarningState() {
+  warnedMissingSecret = false;
+}
 
 function firstString(value: unknown): string | undefined {
   if (Array.isArray(value)) return firstString(value[0]);
@@ -99,19 +114,14 @@ export function verifyMercadoPagoSignature(req: Request, res: Response, next: Ne
   const secret = process.env.MP_WEBHOOK_SECRET;
 
   if (!secret) {
-    if (isProduction()) {
-      console.error(
-        '[MP webhook] MP_WEBHOOK_SECRET ausente em producao — requisicao rejeitada.',
+    // Warn-once para nao poluir o log a cada notificacao do provedor.
+    if (!warnedMissingSecret) {
+      warnedMissingSecret = true;
+      console.warn(
+        '[MP webhook] MP_WEBHOOK_SECRET nao configurado. Validacao criptografica de ' +
+          'assinatura do webhook desabilitada temporariamente.',
       );
-      return res.status(503).json({
-        message: 'Webhook indisponivel',
-        code: 'WEBHOOK_SECRET_NOT_CONFIGURED',
-      });
     }
-
-    console.warn(
-      '[MP webhook] MP_WEBHOOK_SECRET nao configurado (dev): assinatura nao verificada.',
-    );
     return next();
   }
 

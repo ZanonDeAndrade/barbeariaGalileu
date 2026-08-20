@@ -1,5 +1,5 @@
 import { disconnectPrisma } from './config/prisma.js';
-import { assertProductionEnv } from './config/env.js';
+import { assertProductionEnv, warnMissingRecommendedEnv } from './config/env.js';
 import { app } from './app.js';
 import { startReminderScheduler, stopReminderScheduler } from './services/reminderService.js';
 
@@ -12,6 +12,9 @@ try {
   console.error('[server] configuracao invalida:', (error as Error).message);
   process.exit(1);
 }
+
+// Avisos que nao bloqueiam o startup (ex.: assinatura do webhook desabilitada).
+warnMissingRecommendedEnv();
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '0.0.0.0';

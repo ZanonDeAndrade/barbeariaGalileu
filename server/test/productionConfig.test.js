@@ -3,12 +3,21 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { once } = require('node:events');
 
+// Endereco morto para a API do Mercado Pago. Precisa vir ANTES de qualquer
+// require de dist/, porque mercadoPagoApi le MP_API_BASE_URL no carregamento
+// do modulo. Sem isso, o teste do webhook sem segredo executa o handler e faz
+// chamada real ao provedor usando o token de producao do .env.
+process.env.MP_API_BASE_URL = 'http://127.0.0.1:1';
+
 const {
   assertProductionEnv,
   getMissingProductionEnv,
+  getMissingRecommendedEnv,
+  warnMissingRecommendedEnv,
   isProduction,
   requireEnv,
   PRODUCTION_REQUIRED_ENV,
+  PRODUCTION_RECOMMENDED_ENV,
 } = require('../dist/config/env.js');
 
 // Valores ficticios. Nenhum segredo real entra em teste.
@@ -44,10 +53,53 @@ test('cada variavel obrigatoria ausente derruba a configuracao de producao', () 
   }
 });
 
-test('MP_WEBHOOK_SECRET e BARBER_API_KEY sao obrigatorias em producao', () => {
+test('BARBER_API_KEY continua obrigatoria em producao', () => {
   const required = PRODUCTION_REQUIRED_ENV.map((item) => item.name);
-  assert.ok(required.includes('MP_WEBHOOK_SECRET'));
   assert.ok(required.includes('BARBER_API_KEY'));
+  assert.ok(required.includes('DATABASE_URL'));
+  assert.ok(required.includes('MP_ACCESS_TOKEN'));
+});
+
+/**
+ * TEMPORARIO E DELIBERADO: MP_WEBHOOK_SECRET e recomendada, nao obrigatoria,
+ * para que a ausencia dela nao impeca o deploy da correcao de autorizacao.
+ * Este teste existe para que a mudanca seja consciente: se alguem promover a
+ * variavel de volta a obrigatoria, o teste falha e forca a leitura do contexto.
+ * Ver PENDENCIA-SEGURANCA.md.
+ */
+test('MP_WEBHOOK_SECRET e recomendada (nao bloqueia startup) — pendencia registrada', () => {
+  const required = PRODUCTION_REQUIRED_ENV.map((item) => item.name);
+  const recommended = PRODUCTION_RECOMMENDED_ENV.map((item) => item.name);
+
+  assert.ok(!required.includes('MP_WEBHOOK_SECRET'), 'nao pode bloquear o startup');
+  assert.ok(recommended.includes('MP_WEBHOOK_SECRET'), 'deve seguir registrada como pendencia');
+
+  // Producao sem o segredo: configuracao valida, apenas com aviso.
+  const env = { ...FAKE_ENV };
+  delete env.MP_WEBHOOK_SECRET;
+  assert.doesNotThrow(() => assertProductionEnv(env));
+  assert.deepEqual(getMissingRecommendedEnv(env), ['MP_WEBHOOK_SECRET']);
+});
+
+test('o warning de startup e claro e nao vaza valores', () => {
+  const env = { ...FAKE_ENV };
+  delete env.MP_WEBHOOK_SECRET;
+
+  const lines = [];
+  warnMissingRecommendedEnv(env, { warn: (m) => lines.push(m) });
+
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /MP_WEBHOOK_SECRET nao configurado/);
+  assert.match(lines[0], /desabilitada temporariamente/);
+  for (const value of Object.values(FAKE_ENV)) {
+    if (value === 'production') continue;
+    assert.ok(!lines[0].includes(value), 'warning vazou valor de variavel');
+  }
+
+  // Com o segredo presente, nenhum aviso.
+  const quiet = [];
+  warnMissingRecommendedEnv({ ...FAKE_ENV }, { warn: (m) => quiet.push(m) });
+  assert.deepEqual(quiet, []);
 });
 
 test('variavel em branco conta como ausente', () => {
@@ -133,7 +185,7 @@ function post(server, path, headers = {}) {
   });
 }
 
-test('em producao sem MP_WEBHOOK_SECRET o webhook nunca executa o handler', async () => {
+test('TEMPORARIO: sem MP_WEBHOOK_SECRET o webhook segue acessivel (nao 503)', async () => {
   const previousNodeEnv = process.env.NODE_ENV;
   const previousSecret = process.env.MP_WEBHOOK_SECRET;
   process.env.NODE_ENV = 'production';
@@ -146,14 +198,17 @@ test('em producao sem MP_WEBHOOK_SECRET o webhook nunca executa o handler', asyn
   try {
     for (const path of ['/webhooks/mercadopago', '/api/webhook-pagamento']) {
       const response = await post(server, path);
-      assert.equal(
+      // Comportamento compativel com o que ja existia em producao: a requisicao
+      // passa, e o handler reconsulta o pagamento no Mercado Pago antes de
+      // alterar qualquer coisa (o corpo do POST nao e fonte de verdade).
+      assert.notEqual(
         response.statusCode,
         503,
-        `${path} deveria recusar em producao sem segredo`,
+        `${path} nao deve recusar por ausencia do segredo (decisao temporaria)`,
       );
-      assert.equal(response.json?.code, 'WEBHOOK_SECRET_NOT_CONFIGURED');
-      // O handler responderia 200 {ok:true,requestId}. Se aparecer, houve bypass.
-      assert.ok(!response.json?.ok, `${path} executou o handler (fail-open)`);
+      assert.notEqual(response.statusCode, 401, `${path} nao deve exigir assinatura sem segredo`);
+      // Nao pode vazar dado sensivel na resposta.
+      assert.ok(!/customerPhone|customerName/.test(JSON.stringify(response.json ?? {})));
     }
   } finally {
     server.close();
