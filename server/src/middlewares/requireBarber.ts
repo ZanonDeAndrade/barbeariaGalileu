@@ -74,9 +74,26 @@ export function resetBarberAuthThrottle() {
   lastSweepAt = 0;
 }
 
+/**
+ * Le a chave configurada no servidor, ja normalizada.
+ *
+ * O trim aqui NAO e cosmetico: o painel envia `key.trim()` (BarberLogin e
+ * barberAuth), entao um valor guardado com espaco ou quebra de linha no fim
+ * nunca casaria — e o resultado seria um 403 permanente, impossivel de
+ * diagnosticar pela mensagem. Esse e o modo de falha classico de secret criado
+ * com `echo` (que acrescenta \n) em vez de `printf %s`.
+ *
+ * Consequencia deliberada: espaco no inicio/fim nao faz parte da chave.
+ */
 export function getConfiguredBarberKey(): string | null {
   const key = process.env.BARBER_API_KEY;
-  return typeof key === 'string' && key.trim().length > 0 ? key : null;
+
+  if (typeof key !== 'string') {
+    return null;
+  }
+
+  const normalized = key.trim();
+  return normalized.length > 0 ? normalized : null;
 }
 
 /**

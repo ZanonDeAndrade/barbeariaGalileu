@@ -307,3 +307,68 @@ test('contador de tentativas nao e zerado pelo X-Forwarded-For do atacante', asy
     resetBarberAuthThrottle();
   }
 });
+
+/**
+ * Regressao de lockout: o painel envia a chave com trim (BarberLogin/barberAuth).
+ * Um secret gravado com quebra de linha ou espaco no fim — o resultado tipico de
+ * `echo` em vez de `printf %s` ao criar o secret — precisa continuar autenticando,
+ * senao o acesso ao painel fica permanentemente negado com 403.
+ */
+test('chave configurada com espaco/quebra de linha ao redor continua valendo', async () => {
+  const previous = process.env.BARBER_API_KEY;
+
+  for (const stored of ['chave-de-teste\n', '  chave-de-teste  ', 'chave-de-teste\r\n']) {
+    resetBarberAuthThrottle();
+    process.env.BARBER_API_KEY = stored;
+    const server = await startServer();
+
+    try {
+      const ok = await request(server, {
+        method: 'GET',
+        path: '/api/barber/session',
+        headers: { 'x-barber-api-key': 'chave-de-teste' },
+      });
+      assert.equal(
+        ok.statusCode,
+        200,
+        `chave guardada como ${JSON.stringify(stored)} deveria autenticar`,
+      );
+
+      // E uma chave errada continua sendo recusada.
+      const denied = await request(server, {
+        method: 'GET',
+        path: '/api/barber/session',
+        headers: { 'x-barber-api-key': 'chave-errada' },
+      });
+      assert.equal(denied.statusCode, 403);
+    } finally {
+      server.close();
+    }
+  }
+
+  resetBarberAuthThrottle();
+  if (previous === undefined) delete process.env.BARBER_API_KEY;
+  else process.env.BARBER_API_KEY = previous;
+});
+
+test('chave composta apenas de espacos conta como nao configurada', async () => {
+  const previous = process.env.BARBER_API_KEY;
+  resetBarberAuthThrottle();
+  process.env.BARBER_API_KEY = '   \n  ';
+  const server = await startServer();
+
+  try {
+    const response = await request(server, {
+      method: 'GET',
+      path: '/api/barber/session',
+      headers: { 'x-barber-api-key': '   ' },
+    });
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json?.code, 'BARBER_KEY_MISSING');
+  } finally {
+    server.close();
+    resetBarberAuthThrottle();
+    if (previous === undefined) delete process.env.BARBER_API_KEY;
+    else process.env.BARBER_API_KEY = previous;
+  }
+});
