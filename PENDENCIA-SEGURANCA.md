@@ -71,6 +71,58 @@ propósito, forçando a leitura deste documento).
 
 ---
 
+## ABERTA — Painel do barbeiro não usa sessão; a chave é o próprio credencial
+
+**Estado atual:** não existe sessão, cookie ou JWT no projeto (zero dependências
+de sessão). Após o login em `GET /api/barber/session`, a chave fica no
+`localStorage` do navegador e é enviada no header `x-barber-api-key` a cada
+requisição. A validação é sempre server-side, em tempo constante
+(`timingSafeEqual`), com política fail-closed.
+
+**Por que não foi alterado agora:** construir sessão exigiria cookie store,
+flags `HttpOnly`/`Secure`/`SameSite` e **proteção CSRF** — que hoje é
+desnecessária justamente porque a autenticação é por header, não por cookie.
+Seria um refactor grande, fora do escopo de definir a chave de acesso.
+
+**Risco residual:** a chave no `localStorage` é legível por JavaScript, logo um
+XSS no painel a exporia. Hoje não há vetor conhecido: nenhum
+`dangerouslySetInnerHTML`/`innerHTML`/`eval` no código e o React escapa por
+padrão. O impacto também é limitado por ser credencial única e rotacionável.
+
+**Recomendação (quando houver espaço):** trocar por sessão com cookie
+`HttpOnly` + `Secure` + `SameSite=Strict` e expiração, emitida por
+`POST /api/barber/session`, adicionando CSRF no mesmo passo. Ganho adicional:
+logout com invalidação server-side (hoje o logout só apaga o estado local).
+
+**Já mitigado, não precisa de ação:** brute force no login tem contenção dentro
+do `requireBarber` — 20 tentativas inválidas por IP a cada 10 min, contando
+apenas falhas, então o uso legítimo nunca é penalizado.
+
+---
+
+## Rotação da chave do painel
+
+`BARBER_API_KEY` agora vem do Secret Manager (`barber-api-key`), lida pelo
+Cloud Run via `secretKeyRef` na versão `latest`. Para trocar a chave:
+
+1. adicionar uma nova versão ao secret (Console do GCP ou
+   `gcloud secrets versions add barber-api-key --data-file=-`);
+2. criar uma nova revisão para que o container releia o valor
+   (`gcloud run services update barbearia-galileu --project=faroledu
+   --region=southamerica-east1 --update-secrets=BARBER_API_KEY=barber-api-key:latest`);
+3. desativar a versão antiga (`gcloud secrets versions disable`).
+
+Nenhuma alteração de código é necessária. O servidor normaliza espaços e quebras
+de linha ao redor do valor, então colar a chave no Console é seguro.
+
+**Nota:** revisões antigas do Cloud Run (00019–00022) ainda guardam o valor
+literal da chave **anterior** na configuração. Esse valor está inerte — o
+serviço passou a ler do Secret Manager — mas continua visível para quem tenha
+permissão de leitura no Cloud Run. Se quiser eliminá-lo, apague essas revisões
+antigas depois de confirmar que o rollback não será mais necessário.
+
+---
+
 ## ABERTAS — não bloqueantes, herdadas da auditoria
 
 | Item | Severidade | Nota |
