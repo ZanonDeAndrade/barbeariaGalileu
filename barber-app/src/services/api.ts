@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearBarberApiKey, getBarberApiKey } from './barberAuth';
 
 const isDev = import.meta.env.DEV;
 const baseHost = isDev ? 'http://localhost:3000' : import.meta.env.VITE_API_URL;
@@ -24,9 +25,17 @@ api.interceptors.request.use((config) => {
       ? crypto.randomUUID()
       : `req-${Math.random().toString(16).slice(2)}`;
   (config as any).metadata = { start: performance.now(), reqId };
+
+  // A chave do barbeiro acompanha toda requisicao do painel. Quem decide o que
+  // ela libera e o servidor; aqui so a transportamos.
+  const existingHeaders = (config.headers ?? {}) as Record<string, unknown>;
+  const explicitKey = existingHeaders['x-barber-api-key'];
+  const barberApiKey = explicitKey ?? getBarberApiKey() ?? undefined;
+
   config.headers = {
-    ...(config.headers as any),
+    ...existingHeaders,
     'x-request-id': reqId,
+    ...(barberApiKey ? { 'x-barber-api-key': barberApiKey } : {}),
   } as any;
   return config;
 });
@@ -49,6 +58,16 @@ api.interceptors.response.use(
     console.warn(
       `[api ${meta.reqId}] ${error.config?.url ?? 'unknown'} status=error ttfb=${ttfb.toFixed(1)}ms`,
     );
+
+    // O servidor rejeitou a identidade: descarta a chave guardada e volta para
+    // a tela de acesso. BARBER_KEY_MISSING e falha de configuracao do servidor,
+    // nao chave errada, entao a chave local e preservada.
+    const status = error.response?.status;
+    const code = error.response?.data?.code;
+    if (status === 401 || (status === 403 && code === 'BARBER_KEY_INVALID')) {
+      clearBarberApiKey();
+    }
+
     return Promise.reject(error);
   },
 );

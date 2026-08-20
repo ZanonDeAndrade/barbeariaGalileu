@@ -40,7 +40,21 @@ Aplicação full-stack para agendamento de cortes de cabelo em uma barbearia, co
   - `GET /api/blocked-slots?date=YYYY-MM-DD` — bloqueios do dia.
   - `POST /api/blocked-slots` — bloqueia horário específico.
   - `DELETE /api/blocked-slots/:id` — remove bloqueio.
-  - `POST /api/barber/blocked-slots/bulk` — bloqueia vários horários de uma data (payload: `{ date, times: ["08:00",...], reason? }`) — protegido por `x-barber-api-key` quando `BARBER_API_KEY` estiver definido.
+  - `POST /api/barber/blocked-slots/bulk` — bloqueia vários horários de uma data (payload: `{ date, times: ["08:00",...], reason? }`).
+
+### Autorização
+
+Rotas do barbeiro (`GET /api/appointments`, `PATCH /api/appointments/:id/cancel`,
+`/api/barber/*`, `/api/blocked-slots/*`, `POST /api/push/barber/subscribe`) exigem o
+header `x-barber-api-key` com o valor de `BARBER_API_KEY`. A política é *fail-closed*:
+sem `BARBER_API_KEY` configurada no servidor, essas rotas respondem `403`.
+
+- `401 BARBER_KEY_REQUIRED` — header ausente
+- `403 BARBER_KEY_INVALID` — chave incorreta
+- `403 BARBER_KEY_MISSING` — servidor sem chave configurada
+
+A chave **não** é embutida no build do `barber-app`; o barbeiro a digita na tela de
+acesso e ela fica apenas no `localStorage` daquele navegador.
   - `DELETE /api/barber/blocked-slots/bulk` — remove bloqueios em lote (payload: `{ date, times: [...] }`) — protegido por `x-barber-api-key`.
 - Variáveis de ambiente:
   - `DATABASE_URL` — conexão do Prisma (SQLite local por padrão).

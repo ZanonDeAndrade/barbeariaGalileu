@@ -19,6 +19,7 @@ function parseSchemaDateTime(value: string | Date, fieldName: 'startTime' | 'new
 export const phoneSchema = z
   .string()
   .min(8, 'Telefone invalido')
+  .max(20, 'Telefone invalido')
   .transform<string>((value) => normalizePhone(value))
   .refine((value) => value.length >= 8, { message: 'Telefone invalido' });
 
@@ -37,9 +38,13 @@ type RescheduleAppointmentBody = {
 };
 
 export const createAppointmentBodySchema = z.object({
-  customerName: z.string().min(3, 'Informe o nome completo').transform((value) => value.trim()),
+  customerName: z
+    .string()
+    .min(3, 'Informe o nome completo')
+    .max(120, 'Nome muito longo')
+    .transform((value) => value.trim()),
   customerPhone: phoneSchema,
-  haircutType: z.string(),
+  haircutType: z.string().max(60),
   startTime: z
     .union([z.string(), z.date()])
     .transform<Date>((value) => parseSchemaDateTime(value, 'startTime')),

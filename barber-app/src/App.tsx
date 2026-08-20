@@ -1,7 +1,9 @@
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
 import { AppUnavailableScreen } from './components/AppUnavailableScreen';
+import { BarberLogin } from './components/BarberLogin';
+import { clearBarberApiKey, getBarberApiKey, subscribeToBarberAuth } from './services/barberAuth';
 import BarberDashboard from './pages/BarberDashboard';
 import BlockSchedulePage from './pages/BlockSchedulePage';
 import MonthlyMetricsPage from './pages/MonthlyMetricsPage';
@@ -28,6 +30,11 @@ function getInitialDate(): string {
 function AvailableApp() {
   const [activePage, setActivePage] = useState<ActivePage>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(getInitialDate);
+  const [hasKey, setHasKey] = useState<boolean>(() => Boolean(getBarberApiKey()));
+
+  // A chave e limpa pelo interceptor da API quando o servidor responde 401/403,
+  // o que devolve o painel para a tela de acesso sem recarregar a pagina.
+  useEffect(() => subscribeToBarberAuth(() => setHasKey(Boolean(getBarberApiKey()))), []);
 
   const handleNavigateToBlocks = () => setActivePage('block');
   const handleNavigateToMonthlyMetrics = () => setActivePage('monthly-metrics');
@@ -43,7 +50,9 @@ function AvailableApp() {
       </header>
       <main className="app-main">
         <AddToHomescreenPrompt />
-        {activePage === 'dashboard' ? (
+        {!hasKey ? (
+          <BarberLogin />
+        ) : activePage === 'dashboard' ? (
           <BarberDashboard
             selectedDate={selectedDate}
             onChangeDate={setSelectedDate}
@@ -61,7 +70,12 @@ function AvailableApp() {
         )}
       </main>
       <footer className="app-footer">
-        © {new Date().getFullYear()} Barbearia De David. Uso restrito ao time interno.
+        {hasKey ? (
+          <button className="btn btn-secondary" type="button" onClick={clearBarberApiKey}>
+            Sair
+          </button>
+        ) : null}
+        <div>© {new Date().getFullYear()} Barbearia De David. Uso restrito ao time interno.</div>
       </footer>
     </div>
   );

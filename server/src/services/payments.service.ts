@@ -48,21 +48,51 @@ export async function createPixPayment(params: {
   return res;
 }
 
+/**
+ * Campos do Payment Brick que o cliente pode enviar. Tudo que estiver fora
+ * desta lista e descartado: o payload cru era espalhado no corpo da cobranca,
+ * entao um `transaction_amount` (ou `metadata`, ou `external_reference`)
+ * enviado pelo navegador sobrescrevia o valor calculado pelo servidor.
+ */
+const ALLOWED_CARD_PAYLOAD_FIELDS = [
+  'token',
+  'issuer_id',
+  'payment_method_id',
+  'payment_method_option_id',
+  'processing_mode',
+  'payer',
+] as const;
+
+export function pickAllowedCardPayload(cardPayload: Record<string, any>) {
+  const picked: Record<string, any> = {};
+
+  for (const field of ALLOWED_CARD_PAYLOAD_FIELDS) {
+    if (cardPayload[field] !== undefined) {
+      picked[field] = cardPayload[field];
+    }
+  }
+
+  return picked;
+}
+
 export async function createCardPayment(params: {
   amount: number;
   description: string;
   appointment: AppointmentDraft;
   appointmentId: string;
-  // Dados crus vindos do Payment Brick (token, method, issuer, installments, payer...)
+  // Dados crus vindos do Payment Brick (token, method, issuer, payer...)
   cardPayload: Record<string, any>;
 }) {
   const client = getMpClient();
   const payment = new Payment(client);
 
   const body: any = {
+    ...pickAllowedCardPayload(params.cardPayload),
+    // Campos controlados pelo servidor vem DEPOIS do spread, de proposito.
     transaction_amount: params.amount,
     description: params.description,
-    ...params.cardPayload,
+    // Garante pagamento a vista, mesmo que o Brick envie outro valor.
+    installments: 1,
     external_reference: params.appointmentId,
     metadata: {
       appointmentId: params.appointmentId,
@@ -70,9 +100,6 @@ export async function createCardPayment(params: {
     },
     notification_url: process.env.MP_WEBHOOK_URL || undefined,
   };
-
-  // Garante pagamento à vista, mesmo que o Brick envie outro valor
-  body.installments = 1;
 
   const res = await payment.create({ body });
   return res;

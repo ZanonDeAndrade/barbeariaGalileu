@@ -1,0 +1,450 @@
+================================================================================
+RELATORIO DE AUDITORIA DE SEGURANCA - BARBEARIA GALILEU
+Autenticacao, autorizacao e exposicao indevida de rotas, endpoints e dados
+Data: 19/08/2026
+Escopo: server/ (Express + Prisma + PostgreSQL), barber-app/ e customer-app/ (React + Vite)
+Status final: 59 testes passando | build do servidor e dos dois frontends OK
+================================================================================
+
+
+--------------------------------------------------------------------------------
+A. CAUSA RAIZ
+--------------------------------------------------------------------------------
+
+CRITICO - A rota de Agendamentos nunca teve autorizacao no servidor.
+
+A arquitetura nao tem login, sessao, JWT nem cookies. A identidade do barbeiro e
+um segredo compartilhado (BARBER_API_KEY, header x-barber-api-key); a do cliente
+e o numero de telefone. O barber-app e um site estatico publico SEM NENHUMA tela
+de acesso - ele simplesmente chamava GET /api/appointments, e o backend respondia
+para qualquer um:
+
+    server/src/routes/appointments.routes.ts:17
+        router.get('/', listAppointmentsHandler);   // sem guarda alguma
+
+Qualquer pessoa com curl obtinha nome, telefone, observacoes, horario e status de
+pagamento de TODOS os clientes futuros.
+
+A causa arquitetural e maior que essa linha: a API era PUBLICA POR PADRAO e a
+protecao do barbeiro foi aplicada rota a rota, a mao, no momento em que cada
+feature foi escrita. Nao havia lugar central declarando o que e area interna,
+entao toda rota nova nascia aberta. Duas consequencias concretas:
+
+1) REGRESSAO CONFIRMADA NO HISTORICO
+   O commit 2a5a6a8 ("feat: implementacao dashboard barbeiro", 2026-01-09)
+   REMOVEU a protecao do cancelamento administrativo:
+
+       -router.patch('/:id/cancel', requireBarberKey, cancelAppointmentHandler);
+       +router.patch('/:id/cancel', cancelAppointmentHandler);
+
+   Nada apontou o problema porque nao havia teste cobrindo autorizacao.
+
+2) O UNICO MIDDLEWARE EXISTENTE FALHAVA ABERTO
+   requireBarberKey chamava next() quando BARBER_API_KEY nao estava definida - ou
+   seja, um deploy sem a variavel deixava ate as rotas "protegidas" abertas. O
+   server/.env local nao tem essa variavel.
+
+
+--------------------------------------------------------------------------------
+B. VULNERABILIDADES ENCONTRADAS
+--------------------------------------------------------------------------------
+
+>>> CRITICO
+
+[1] GET /api/appointments
+    Arquivo : server/src/routes/appointments.routes.ts
+    Impacto : Vazamento de PII de toda a base de clientes.
+    Cenario : curl https://<api>/api/appointments
+    Correcao: requireBarber
+
+[2] PATCH /api/appointments/:id/cancel
+    Arquivo : server/src/routes/appointments.routes.ts
+    Impacto : BFLA - qualquer um cancela qualquer agendamento. Combinado com [1],
+              que entrega os IDs, derruba a agenda inteira.
+    Correcao: requireBarber (guarda restaurada - ver regressao 2a5a6a8)
+
+[3] GET / POST / DELETE /api/blocked-slots
+    Arquivo : server/src/routes/blockedSlots.routes.ts
+    Impacto : Bloquear todos os horarios = negacao de servico no negocio; DELETE
+              desfaz as folgas do barbeiro; o GET expoe o MOTIVO do bloqueio
+              (agenda pessoal).
+    Correcao: router.use(requireBarber) - default deny no router inteiro
+
+[4] GET /api/barber/dashboard/appointments-summary
+    Arquivo : server/src/routes/barber.routes.ts
+    Impacto : Faturamento e volume por servico expostos publicamente.
+    Correcao: router.use(requireBarber)
+
+[5] POST /api/barber/payments/:paymentId/sync
+    Arquivo : server/src/routes/payments.routes.ts
+    Impacto : Devolve o Appointment cru (PII + mpPaymentId) e permite sondar IDs
+              de pagamento do Mercado Pago.
+    Correcao: requireBarber
+
+[6] Middleware fail-open
+    Arquivo : server/src/middlewares/requireBarberKey.ts
+    Impacto : Sem BARBER_API_KEY configurada, next() - toda a area interna aberta.
+    Correcao: substituido por requireBarber, fail-closed
+
+[7] PRECO DO SERVICO VINHA DO CLIENTE
+    Arquivo : server/src/controllers/payments.controller.ts
+              server/src/services/payments.service.ts
+    Impacto : amount: z.number().positive() era lido do corpo da requisicao ->
+              pagar R$0,01 por um combo de R$65,00.
+              Agravado em payments.service.ts, onde ...params.cardPayload era
+              espalhado DEPOIS de transaction_amount, permitindo sobrescrever
+              tambem metadata, external_reference e notification_url.
+    Cenario : interceptar o POST /api/process-payment e trocar "amount": 65 por
+              "amount": 0.01, ou injetar transaction_amount dentro de cardPayload.
+    Correcao: preco derivado de getHaircutById().priceCents no servidor;
+              whitelist explicita dos campos aceitos do Payment Brick
+
+
+>>> ALTO
+
+[8] CHAVE DO BARBEIRO EMBUTIDA NO BUNDLE PUBLICO
+    Arquivo : barber-app/.env.example, barber-app/src/services/push.ts,
+              barber-app/src/services/blockedSlots.ts
+    Impacto : VITE_BARBER_API_KEY era compilada dentro do JavaScript publico. A
+              "chave" ficava legivel para qualquer visitante do site - proteger o
+              backend com ela seria inutil.
+    Correcao: chave removida do build; tela de acesso no painel; chave digitada
+              pelo barbeiro e guardada apenas no localStorage daquele navegador
+
+[9] RATE LIMIT INEXISTENTE EM PRODUCAO E CONTORNAVEL
+    Arquivo : server/src/middlewares/rateLimit.ts
+    Impacto : RATE_LIMIT_STORE=none era o default em producao -> TODO rate limit
+              era no-op, inclusive o de /api/appointments/by-phone.
+              Alem disso o IP vinha do PRIMEIRO valor de X-Forwarded-For, que e
+              escrito pelo cliente: trocar esse valor a cada requisicao zerava o
+              contador.
+    Correcao: default passou a "memory"; IP obtido via req.ip (respeita
+              trust proxy); contencao de brute force movida para dentro do
+              requireBarber, contando somente tentativas invalidas
+
+[10] WEBHOOK DO MERCADO PAGO SEM VALIDACAO DE ASSINATURA
+    Arquivo : server/src/routes/webhooks.routes.ts
+    Impacto : Endpoint aberto, sem verificacao de origem.
+    Correcao: middleware verifyMercadoPagoSignature (HMAC-SHA256 sobre o
+              manifesto id/request-id/ts + protecao contra replay de 10 min)
+
+[11] HANDLERS DE CHECKOUT SEM asyncHandler
+    Arquivo : server/src/routes/payments.routes.ts
+    Impacto : Uma rejeicao (ex.: erro de validacao) virava unhandledRejection e a
+              requisicao FICAVA PENDURADA ate o timeout, em vez de responder 400.
+              Vetor de exaustao de conexoes.
+    Correcao: asyncHandler nos tres handlers
+
+
+>>> MEDIO / BAIXO
+
+[12] Handler de webhook morto em payments.controller.ts que apagava agendamentos
+     a partir de entrada nao autenticada. Bastava alguem reconecta-lo a uma rota.
+     -> Removido.
+
+[13] Sem limite superior em customerName / customerPhone / haircutType e sem
+     limite explicito de corpo.
+     -> .max() nos schemas Zod; express.json({ limit: '64kb' }).
+
+[14] requestTimer logava a query string completa - inclui o endpoint de push,
+     que funciona como URL-capacidade.
+     -> Log passou a registrar somente o path.
+
+[15] Comparacao da chave com === (oraculo de tempo).
+     -> timingSafeEqual, aplicado tambem em requireCronKey.
+
+[16] rateLimit nunca expirava entradas do Map -> crescimento ilimitado de memoria.
+     -> Varredura periodica de entradas vencidas.
+
+[17] Nenhum header de seguranca nas respostas.
+     -> securityHeaders.ts: X-Content-Type-Options, Referrer-Policy,
+        X-Frame-Options, CSP frame-ancestors 'none', HSTS sob HTTPS.
+
+[18] Chave copiada para o CacheStorage do push sobrevivia ao logout.
+     -> clearBarberApiKey() apaga tambem o cache 'push-config'.
+
+[19] express@4.21.2 com advisory HIGH.
+     -> express@4.22.2 (patch, mesmo major). Testes e build revalidados.
+
+
+>>> AUDITADO E CONSIDERADO OK (sem achado)
+
+- SQL / NoSQL injection: zero ocorrencias de $queryRaw / $executeRaw /
+  $queryRawUnsafe. Todo acesso e via Prisma com parametros tipados.
+- XSS: zero dangerouslySetInnerHTML / innerHTML / eval / new Function nos dois
+  frontends. React escapa por padrao.
+- Open redirect: nenhum parametro redirectTo / returnUrl / callbackUrl / next.
+- Path traversal: nao ha construcao de caminho de arquivo a partir de input.
+- Upload de arquivos: nao existe no sistema.
+- SSRF: ja mitigado em push.schema.ts (isSafePushEndpoint recusa non-HTTPS, IPs
+  literais IPv4/IPv6, localhost, .local, .internal, .home.arpa e hosts sem ponto).
+- CSRF: nao se aplica - a autenticacao e por header, nao por cookie. O sistema
+  nao usa cookies.
+- CORS: allowlist explicita, sem reflexao do Origin, sem wildcard.
+- Mass assignment / overposting: todo req.body passa por schema Zod com
+  whitelist. Campos como status, paymentStatus e mpPaymentId nao sao atribuiveis
+  pelo cliente.
+- Cache: nao ha cache compartilhado servindo dado de usuario.
+- Multi-tenancy: nao existe (barbearia unica) - nao ha isolamento a violar.
+- IDOR / BOLA no fluxo do cliente: ownership JA ERA verificado no servidor
+  (assertCustomerOwnership) em cancelar e remarcar.
+- Segredos: .env fora do git; nenhum segredo commitado; nenhum token ou PII em
+  log.
+
+
+--------------------------------------------------------------------------------
+C. ALTERACOES EFETUADAS
+--------------------------------------------------------------------------------
+
+CRIADOS
+  server/src/middlewares/requireBarber.ts             autorizacao central fail-closed
+  server/src/middlewares/securityHeaders.ts           headers de seguranca
+  server/src/middlewares/verifyMercadoPagoSignature.ts validacao HMAC do webhook
+  server/test/authorization.test.js                   regressao de autorizacao
+  server/test/paymentsSecurity.test.js                regressao de preco/assinatura
+  barber-app/src/services/barberAuth.ts               sessao local do barbeiro
+  barber-app/src/components/BarberLogin.tsx           tela de acesso
+
+REMOVIDOS
+  server/src/middlewares/requireBarberKey.ts          (fail-open)
+  server/src/middlewares/requireBarberKeyStrict.ts    (duplicata)
+  -> unificados em requireBarber
+
+MODIFICADOS (server)
+  src/app.ts                              securityHeaders + limite de corpo
+  src/routes/appointments.routes.ts       guardas + rate limit + classificacao
+  src/routes/barber.routes.ts             router.use(requireBarber) + /session
+  src/routes/blockedSlots.routes.ts       router.use(requireBarber)
+  src/routes/payments.routes.ts           asyncHandler + requireBarber + assinatura
+  src/routes/webhooks.routes.ts           verifyMercadoPagoSignature
+  src/routes/push.routes.ts               migrado para requireBarber
+  src/middlewares/rateLimit.ts            default memory, req.ip, sweep
+  src/middlewares/requestTimer.ts         log sem query string
+  src/middlewares/requireCronKey.ts       comparacao em tempo constante
+  src/controllers/payments.controller.ts  preco do servidor; handler morto removido
+  src/services/payments.service.ts        whitelist do cardPayload
+  src/services/appointmentService.ts      limites de tamanho
+  src/schemas/appointments.schema.ts      limites de tamanho
+  package.json                            express 4.21.2 -> 4.22.2
+  .env.example                            documentacao das variaveis
+  test/push.test.js                       atualizado para o middleware unificado
+
+MODIFICADOS (barber-app)
+  src/App.tsx                             gate de acesso + botao Sair
+  src/services/api.ts                     header em toda requisicao; limpa em 401/403
+  src/services/push.ts                    chave da sessao, nao do build
+  src/services/blockedSlots.ts            deduplicado (header vem do interceptor)
+  src/components/NotificationSettings.tsx mensagens de erro atualizadas
+  .env.example                            VITE_BARBER_API_KEY removida
+
+MODIFICADO (raiz)
+  README.md                               secao "Autorizacao"
+
+OBSERVACAO SOBRE O GIT
+  git status mostra ~113 arquivos modificados. Isso e ruido PRE-EXISTENTE de fim
+  de linha (CRLF <-> LF): todos tem insertions == deletions. Mantive CRLF em tudo
+  que editei para nao ampliar esse ruido.
+
+
+--------------------------------------------------------------------------------
+INVENTARIO FINAL DE ROTAS
+(extraido do router do app ja compilado, nao da leitura do codigo)
+--------------------------------------------------------------------------------
+
+METODO  ROTA                                          PROTECAO
+------  --------------------------------------------  --------------------------
+GET     /api/appointments                             requireBarber
+PATCH   /api/appointments/:id/cancel                  requireBarber
+GET     /api/barber/session                           requireBarber
+GET     /api/barber/dashboard/appointments-summary    requireBarber
+POST    /api/barber/blocked-slots/bulk                requireBarber
+DELETE  /api/barber/blocked-slots/bulk                requireBarber
+GET     /api/blocked-slots                            requireBarber
+POST    /api/blocked-slots                            requireBarber
+DELETE  /api/blocked-slots/:id                        requireBarber
+POST    /api/barber/payments/:paymentId/sync          requireBarber
+POST    /api/push/barber/subscribe                    requireBarber
+POST    /api/push/run-reminders                       requireCronKey
+POST    /webhooks/mercadopago                         verifyMercadoPagoSignature
+POST    /api/webhook-pagamento                        verifyMercadoPagoSignature
+GET     /health                                       PUBLIC (intencional)
+GET     /api/health                                   PUBLIC (intencional)
+GET     /api/haircuts                                 PUBLIC (catalogo)
+GET     /api/appointments/availability                PUBLIC (sem PII)
+POST    /api/appointments                             PUBLIC + rate limit
+POST    /api/process-payment                          PUBLIC + rate limit
+POST    /api/payment/pix                              PUBLIC + rate limit
+POST    /api/payment/cash                             PUBLIC + rate limit
+POST    /api/appointments/by-phone                    CUSTOMER + rate limit
+PATCH   /api/appointments/:id/cancel-by-customer      CUSTOMER (ownership)
+POST    /api/appointments/:id/reschedule              CUSTOMER (ownership)
+GET     /api/push/public-key                          PUBLIC
+GET     /api/push/status                              capacidade (endpoint secreto)
+POST    /api/push/subscribe                           capacidade + rate limit
+DELETE  /api/push/unsubscribe                         capacidade
+
+
+--------------------------------------------------------------------------------
+D. PROTECOES IMPLEMENTADAS
+--------------------------------------------------------------------------------
+
+- Autorizacao server-side, centralizada e fail-closed (requireBarber)
+- Default deny por router: router.use(requireBarber) em /api/barber e
+  /api/blocked-slots. Rota nova nesses routers ja nasce protegida.
+- Semantica consistente de status:
+      401 BARBER_KEY_REQUIRED  -> identidade ausente
+      403 BARBER_KEY_INVALID   -> autenticado, sem permissao
+      403 BARBER_KEY_MISSING   -> servidor sem chave configurada (fail-closed)
+      429 TOO_MANY_ATTEMPTS    -> brute force contido
+- Comparacao de credencial em tempo constante (timingSafeEqual)
+- Contencao de brute force contando SOMENTE tentativas invalidas (o barbeiro
+  autenticado nunca e limitado)
+- Rate limit ativo em producao e imune a X-Forwarded-For forjado
+- Preco derivado do catalogo do servidor + whitelist do payload de cartao
+- Validacao de assinatura HMAC com protecao contra replay no webhook
+- Limites de tamanho em todas as entradas de texto e no corpo da requisicao
+- Headers de seguranca
+- Higiene de log (sem query string, sem chave ecoada)
+
+
+--------------------------------------------------------------------------------
+E. TESTES ADICIONADOS
+--------------------------------------------------------------------------------
+
+server/test/authorization.test.js - 10 testes, nivel HTTP sobre createApp():
+
+  1. as 11 rotas do barbeiro respondem 401 BARBER_KEY_REQUIRED sem credencial
+  2. as mesmas 11 respondem 403 BARBER_KEY_INVALID com credencial errada, e a
+     resposta nao contem customerName nem customerPhone
+  3. chave valida atravessa o middleware -> 200
+  4. tentativas de bypass, todas negadas:
+        /api/appointments/          (trailing slash)
+        /api/APPOINTMENTS           (casing)
+        /api/appointments/../appointments
+        /api/appointments%2F        (URL encoding)
+        /api//appointments          (barra dupla)
+        /api/blocked-slots/
+        /api/barber/dashboard/appointments-summary/?month=...
+  5. HEAD e OPTIONS nao expoem a lista de agendamentos
+  6. rotas publicas continuam 200 (guarda contra "proteger demais")
+  7. sem BARBER_API_KEY -> 403 BARBER_KEY_MISSING (fail-closed)
+  8. brute force da chave e contido em 429
+  9. o contador de tentativas NAO e zerado por X-Forwarded-For forjado
+ 10. respostas trazem os headers de seguranca
+
+server/test/paymentsSecurity.test.js - 7 testes:
+
+  1. o preco de cada item do catalogo vem do servidor
+  2. haircutType desconhecido nao gera cobranca (400 INVALID_HAIRCUT)
+  3. cardPayload hostil nao passa transaction_amount, installments,
+     external_reference, metadata, notification_url nem description
+  4. parseSignatureHeader extrai ts e v1
+  5. assinatura valida do Mercado Pago e aceita
+  6. assinatura ausente / adulterada / de outro data.id / de outro request-id /
+     com segredo errado sao recusadas
+  7. assinatura antiga e recusada (replay)
+
+server/test/push.test.js - atualizado para o middleware unificado:
+  401 vs 403, prefixo correto da chave nao passa, chave em branco conta como
+  nao configurada.
+
+NOTA: os casos negativos sao rejeitados no middleware ANTES de qualquer acesso ao
+banco, entao a suite roda sem PostgreSQL.
+
+
+--------------------------------------------------------------------------------
+F. PONTOS RESTANTES
+--------------------------------------------------------------------------------
+
+[1] TELEFONE COMO IDENTIDADE DO CLIENTE - ALTO, decisao arquitetural
+    Risco     : POST /api/appointments/by-phone devolve o historico de qualquer
+                telefone informado. Um numero de celular e adivinhavel e
+                enumeravel; hoje so o rate limit contem isso. Cancelar e remarcar
+                herdam a mesma fraqueza.
+    Impacto   : exposicao do historico de agendamentos de terceiros.
+    Recomenda : OTP por SMS/WhatsApp emitindo um token curto, com by-phone
+                passando a exigi-lo.
+    Por que nao fiz: muda o fluxo do cliente e exige provedor de SMS - e sua
+                decisao de produto.
+
+[2] CHAVE UNICA COMPARTILHADA - MEDIO
+    Risco     : nao ha usuarios, papeis nem trilha de auditoria. Quem tem a chave
+                e "o barbeiro"; nao da para revogar o acesso de uma pessoa sem
+                trocar a chave de todos.
+    Impacto   : aceitavel para uma barbearia; vira problema com mais barbeiros.
+    ACAO IMEDIATA NECESSARIA:
+                gere a chave com   openssl rand -hex 32
+                e provisione BARBER_API_KEY no Cloud Run.
+                SEM ELA O PAINEL RESPONDE 403 - isso e por design (fail-closed).
+
+[3] MP_WEBHOOK_SECRET NAO CONFIGURADA
+    Risco     : a validacao de assinatura so liga quando a variavel existe; sem
+                ela o middleware registra um aviso e deixa passar.
+    Por que   : o handler ja nao confia no corpo recebido (reconsulta o pagamento
+                na API do Mercado Pago antes de gravar) e bloquear derrubaria a
+                conciliacao ate o segredo ser provisionado.
+    Recomenda : pegue o segredo no painel do Mercado Pago (Suas integracoes >
+                Webhooks) e defina MP_WEBHOOK_SECRET para fechar isso de vez.
+
+[4] RACE CONDITION EM AGENDAMENTOS MULTI-SLOT - MEDIO
+    Risco     : existe o indice unico parcial Appointment_startTime_active_key,
+                que protege o slot inicial. Mas um servico de 60 min ocupa 2
+                slots e so o primeiro e unico: duas reservas simultaneas em 09:00
+                (60 min) e 09:30 (30 min) podem se sobrepor, porque
+                ensureSlotsAvailable faz SELECT antes do INSERT (TOCTOU).
+    Recomenda : tabela de ocupacao com uma linha unica por slot ocupado,
+                preenchida dentro da mesma transacao.
+    Por que nao fiz: exige migration e mudanca no modelo de dados.
+
+[5] RATE LIMIT E POR INSTANCIA
+    Risco     : com RATE_LIMIT_STORE=memory e varias instancias do Cloud Run, o
+                limite efetivo se multiplica pelo numero de instancias.
+    Recomenda : store distribuido (Redis) ou Cloud Armor na frente.
+
+[6] NAO HA SCRIPT DE LINT
+    O item "lint passou" do checklist NAO PODE SER CONFIRMADO porque nao existe
+    script de lint em nenhum dos tres pacotes. Typecheck (tsc), testes e build
+    passaram nos tres.
+
+[7] npm audit
+    Restam HIGH/CRITICAL apenas em devDependencies (prisma CLI, concurrently,
+    rollup e transitivas). O Dockerfile roda npm prune --omit=dev, entao NADA
+    disso vai para a imagem de producao.
+    path-to-regexp@0.1.12 ainda aparece via express 4, mas o advisory exige dois
+    parametros no mesmo segmento de rota (/:a-:b) - nenhuma rota do projeto tem
+    isso.
+    mercadopago@2.10.0 -> 3.4.0 e semver-major: NAO atualizei. Avalie a migracao
+    separadamente.
+
+
+--------------------------------------------------------------------------------
+CHECKLIST DE CONCLUSAO
+--------------------------------------------------------------------------------
+
+[x] A rota de Agendamentos exige autenticacao corretamente
+[x] As APIs usadas por Agendamentos tambem exigem autenticacao
+[x] Usuarios sem permissao nao conseguem acessar Agendamentos
+[x] Usuarios nao acessam agendamentos de outro cliente indevidamente
+       (ownership por telefone ja verificado no servidor - ver ressalva F[1])
+[x] A protecao nao depende exclusivamente do frontend
+[x] Todas as demais rotas sensiveis foram revisadas
+[x] Todos os endpoints sensiveis foram revisados
+[x] Foram verificadas falhas de BOLA/IDOR
+[x] Foram verificadas falhas de privilege escalation
+[x] Foram verificadas falhas de mass assignment
+[x] Foram verificadas configuracoes de sessao/cookies (nao ha cookies)
+[x] Foram verificadas falhas de CSRF (nao se aplica - auth por header)
+[x] Foram verificadas falhas de CORS
+[x] Foram verificadas exposicoes de dados
+[x] Foram verificadas queries inseguras
+[x] Foram verificadas entradas nao validadas
+[n/a] Tenant isolation - o sistema nao tem multi-tenancy
+[x] Foram adicionados testes de regressao (17 novos)
+[ ] Lint - NAO EXISTE script de lint no projeto (ver F[6])
+[x] Typecheck passou (server, barber-app, customer-app)
+[x] Testes passaram (59/59)
+[x] Build passou (server, barber-app, customer-app)
+
+================================================================================
+FIM DO RELATORIO
+================================================================================

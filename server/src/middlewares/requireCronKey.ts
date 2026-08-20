@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { safeCompare } from './requireBarber.js';
 
 /**
  * Protege a rota de disparo manual/cron de lembretes.
@@ -12,14 +13,14 @@ export function requireCronKey(req: Request, res: Response, next: NextFunction) 
 
   if (cronKey) {
     const provided = req.header('x-cron-key');
-    if (provided && provided === cronKey) {
+    if (provided && safeCompare(provided, cronKey)) {
       return next();
     }
   }
 
   if (barberKey) {
     const provided = req.header('x-barber-api-key');
-    if (provided && provided === barberKey) {
+    if (provided && safeCompare(provided, barberKey)) {
       return next();
     }
   }

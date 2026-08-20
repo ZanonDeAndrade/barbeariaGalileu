@@ -127,9 +127,11 @@ type CreateAppointmentInput = {
 };
 
 const createAppointmentSchema = z.object({
-  customerName: z.string().min(3, 'Informe o nome completo'),
-  customerPhone: z.string().min(8, 'Telefone invalido'),
-  haircutType: z.string(),
+  // Limites superiores explicitos: sem eles um POST de 60KB de nome entra no
+  // banco e reaparece em toda listagem do painel.
+  customerName: z.string().min(3, 'Informe o nome completo').max(120, 'Nome muito longo'),
+  customerPhone: z.string().min(8, 'Telefone invalido').max(20, 'Telefone invalido'),
+  haircutType: z.string().max(60),
   startTime: z.union([z.string(), z.date()]).transform<Date>((value) =>
     parseSchemaDateTime(value, 'startTime'),
   ),

@@ -7,7 +7,7 @@ import {
   subscribeCustomerHandler,
   unsubscribeHandler,
 } from '../controllers/push.controller.js';
-import { requireBarberKeyStrict } from '../middlewares/requireBarberKeyStrict.js';
+import { requireBarber } from '../middlewares/requireBarber.js';
 import { requireCronKey } from '../middlewares/requireCronKey.js';
 import { rateLimit } from '../middlewares/rateLimit.js';
 
@@ -23,7 +23,7 @@ router.post('/subscribe', subscribeRateLimit, subscribeCustomerHandler);
 
 // Inscricao do barbeiro: fail-closed — exige BARBER_API_KEY configurada e
 // correta (evita inscricao anonima recebendo notificacoes do barbeiro).
-router.post('/barber/subscribe', requireBarberKeyStrict, subscribeBarberHandler);
+router.post('/barber/subscribe', requireBarber, subscribeBarberHandler);
 
 router.delete('/unsubscribe', unsubscribeHandler);
 

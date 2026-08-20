@@ -1,6 +1,17 @@
 import { disconnectPrisma } from './config/prisma.js';
+import { assertProductionEnv } from './config/env.js';
 import { app } from './app.js';
 import { startReminderScheduler, stopReminderScheduler } from './services/reminderService.js';
+
+// Fail-fast: em producao, uma variavel obrigatoria ausente derruba o processo
+// AQUI, antes de abrir a porta. Sem isso, a falta de MP_WEBHOOK_SECRET ou de
+// BARBER_API_KEY so apareceria quando uma requisicao chegasse.
+try {
+  assertProductionEnv();
+} catch (error) {
+  console.error('[server] configuracao invalida:', (error as Error).message);
+  process.exit(1);
+}
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '0.0.0.0';

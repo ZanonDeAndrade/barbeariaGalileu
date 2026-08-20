@@ -15,8 +15,7 @@ const {
   buildCustomerAppointmentUrl,
 } = require('../dist/services/appointmentNotificationService.js');
 const { processDueReminders } = require('../dist/services/reminderService.js');
-const { requireBarberKey } = require('../dist/middlewares/requireBarberKey.js');
-const { requireBarberKeyStrict } = require('../dist/middlewares/requireBarberKeyStrict.js');
+const { requireBarber } = require('../dist/middlewares/requireBarber.js');
 const { requireCronKey } = require('../dist/middlewares/requireCronKey.js');
 const { isSafePushEndpoint, pushSubscriptionSchema } = require('../dist/schemas/push.schema.js');
 
@@ -388,42 +387,78 @@ test('rota do barbeiro bloqueia sem a chave correta', () => {
   const previous = process.env.BARBER_API_KEY;
   process.env.BARBER_API_KEY = 'secret-key';
   try {
-    const denied = fakeReqRes({});
+    // Sem header -> 401 (identidade ausente).
+    const missing = fakeReqRes({});
     let nextCalled = false;
-    requireBarberKey(denied.req, denied.res, () => {
+    requireBarber(missing.req, missing.res, () => {
       nextCalled = true;
     });
     assert.equal(nextCalled, false);
-    assert.equal(denied.getStatus(), 403);
+    assert.equal(missing.getStatus(), 401);
+    assert.equal(missing.getBody().code, 'BARBER_KEY_REQUIRED');
+
+    // Header errado -> 403 (identidade presente, sem permissao).
+    const wrong = fakeReqRes({ 'x-barber-api-key': 'secret-keY' });
+    let wrongNext = false;
+    requireBarber(wrong.req, wrong.res, () => {
+      wrongNext = true;
+    });
+    assert.equal(wrongNext, false);
+    assert.equal(wrong.getStatus(), 403);
+    assert.equal(wrong.getBody().code, 'BARBER_KEY_INVALID');
+
+    // Prefixo correto nao passa (comparacao e do valor inteiro).
+    const prefix = fakeReqRes({ 'x-barber-api-key': 'secret' });
+    let prefixNext = false;
+    requireBarber(prefix.req, prefix.res, () => {
+      prefixNext = true;
+    });
+    assert.equal(prefixNext, false);
+    assert.equal(prefix.getStatus(), 403);
 
     const allowed = fakeReqRes({ 'x-barber-api-key': 'secret-key' });
     let allowedNext = false;
-    requireBarberKey(allowed.req, allowed.res, () => {
+    requireBarber(allowed.req, allowed.res, () => {
       allowedNext = true;
     });
     assert.equal(allowedNext, true);
+    assert.equal(allowed.req.isBarber, true);
   } finally {
     if (previous === undefined) delete process.env.BARBER_API_KEY;
     else process.env.BARBER_API_KEY = previous;
   }
 });
 
-test('inscricao push do barbeiro e fail-closed sem BARBER_API_KEY', () => {
+test('requireBarber e fail-closed sem BARBER_API_KEY configurada', () => {
   const prev = process.env.BARBER_API_KEY;
   delete process.env.BARBER_API_KEY;
   try {
-    const denied = fakeReqRes({});
-    let nextCalled = false;
-    requireBarberKeyStrict(denied.req, denied.res, () => {
-      nextCalled = true;
+    // Mesmo enviando um header qualquer, sem chave no servidor nao passa.
+    for (const headers of [{}, { 'x-barber-api-key': 'qualquer-coisa' }]) {
+      const denied = fakeReqRes(headers);
+      let nextCalled = false;
+      requireBarber(denied.req, denied.res, () => {
+        nextCalled = true;
+      });
+      assert.equal(nextCalled, false);
+      assert.equal(denied.getStatus(), 403);
+      assert.equal(denied.getBody().code, 'BARBER_KEY_MISSING');
+    }
+
+    // Chave em branco tambem conta como nao configurada.
+    process.env.BARBER_API_KEY = '   ';
+    const blank = fakeReqRes({ 'x-barber-api-key': '   ' });
+    let blankNext = false;
+    requireBarber(blank.req, blank.res, () => {
+      blankNext = true;
     });
-    assert.equal(nextCalled, false);
-    assert.equal(denied.getStatus(), 403);
+    assert.equal(blankNext, false);
+    assert.equal(blank.getBody().code, 'BARBER_KEY_MISSING');
 
     process.env.BARBER_API_KEY = 'k';
     const allowed = fakeReqRes({ 'x-barber-api-key': 'k' });
     let allowedNext = false;
-    requireBarberKeyStrict(allowed.req, allowed.res, () => {
+    requireBarber(allowed.req, allowed.res, () => {
       allowedNext = true;
     });
     assert.equal(allowedNext, true);

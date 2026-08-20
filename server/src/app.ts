@@ -5,6 +5,7 @@ import webhooksRouter from './routes/webhooks.routes.js';
 import { errorHandler } from './utils/errorHandler.js';
 import { corsMiddleware, corsPreflightMiddleware } from './config/cors.js';
 import { requestTimer } from './middlewares/requestTimer.js';
+import { securityHeaders } from './middlewares/securityHeaders.js';
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ export function createApp() {
   app.disable('x-powered-by');
   app.set('trust proxy', 1);
 
+  app.use(securityHeaders);
   app.use(corsMiddleware);
   app.options('*', corsPreflightMiddleware);
   app.use(requestTimer);
@@ -26,8 +28,10 @@ export function createApp() {
     });
   });
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // Limite explicito de corpo: o webhook do Mercado Pago grava o body cru na
+  // tabela WebhookEvent, entao um payload grande vira crescimento de banco.
+  app.use(express.json({ limit: '64kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '64kb' }));
 
   app.use('/webhooks', webhooksRouter);
   app.use('/api', router);

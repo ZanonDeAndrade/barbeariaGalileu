@@ -10,14 +10,31 @@ type Counter = {
   resetAt: number;
 };
 
-const rateLimitStoreMode =
-  process.env.RATE_LIMIT_STORE ?? (process.env.NODE_ENV === 'production' ? 'none' : 'memory');
+/**
+ * Limite por IP em memoria.
+ *
+ * O default passou a ser 'memory' tambem em producao. Antes o default em
+ * producao era 'none', o que transformava TODO rate limit da aplicacao em
+ * no-op — inclusive o de POST /api/appointments/by-phone (enumeracao de
+ * agenda por telefone) e o da chave do barbeiro (brute force). Em varias
+ * instancias o contador e por instancia, o que enfraquece o limite, mas e
+ * estritamente melhor do que nao ter limite algum.
+ *
+ * RATE_LIMIT_STORE=none continua disponivel como desligamento explicito.
+ */
+const rateLimitStoreMode = process.env.RATE_LIMIT_STORE ?? 'memory';
 
+/**
+ * Usa req.ip, que o Express calcula a partir de X-Forwarded-For respeitando o
+ * `trust proxy` configurado no app (1 hop, o proxy do Cloud Run).
+ *
+ * A versao anterior lia o PRIMEIRO valor do X-Forwarded-For direto do header.
+ * Esse valor e escrito pelo cliente: bastava mandar um IP diferente em cada
+ * requisicao para zerar o contador e anular todo o rate limit (brute force da
+ * chave do barbeiro, enumeracao por telefone).
+ */
 function getClientIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-  const ip = typeof raw === 'string' && raw.length > 0 ? raw.split(',')[0].trim() : req.ip;
-  return ip || 'unknown';
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
 export function rateLimit(options: RateLimitOptions) {
@@ -26,9 +43,26 @@ export function rateLimit(options: RateLimitOptions) {
   }
 
   const store = new Map<string, Counter>();
+  let lastSweepAt = 0;
+
+  // Sem isso o Map cresce indefinidamente (uma entrada por IP visto), o que e
+  // um vetor de exaustao de memoria em processo de longa duracao.
+  function sweepExpired(now: number) {
+    if (now - lastSweepAt < options.windowMs) {
+      return;
+    }
+    lastSweepAt = now;
+    for (const [key, counter] of store) {
+      if (now >= counter.resetAt) {
+        store.delete(key);
+      }
+    }
+  }
 
   return (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
+    sweepExpired(now);
+
     const key = getClientIp(req);
     const current = store.get(key);
 
@@ -49,4 +83,3 @@ export function rateLimit(options: RateLimitOptions) {
     return next();
   };
 }
-

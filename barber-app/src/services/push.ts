@@ -1,4 +1,5 @@
 import { api, apiBaseURL } from './api';
+import { getBarberApiKey } from './barberAuth';
 
 const PUSH_CONTEXT_CACHE = 'push-config';
 const PUSH_CONTEXT_KEY = '/__push_context__';
@@ -21,9 +22,10 @@ export type EnableResult =
         | 'error';
     };
 
+// A chave vem da sessao do barbeiro (digitada na tela de acesso), nunca de uma
+// variavel de build — VITE_* seria publicada dentro do bundle.
 function barberApiKey(): string | undefined {
-  const key = (import.meta as any).env.VITE_BARBER_API_KEY;
-  return typeof key === 'string' && key.trim() ? key.trim() : undefined;
+  return getBarberApiKey() ?? undefined;
 }
 
 export function isIos(): boolean {
@@ -208,10 +210,15 @@ export async function enablePush(): Promise<EnableResult> {
       { headers: { 'x-barber-api-key': apiKey } },
     );
 
+
     await storePushContext(publicKey);
     return { ok: true };
   } catch (error) {
-    if ((error as any)?.response?.status === 403) {
+    const status = (error as any)?.response?.status;
+    if ((error as any)?.response?.data?.code === 'BARBER_KEY_MISSING') {
+      return { ok: false, reason: 'barber-key-missing' };
+    }
+    if (status === 401 || status === 403) {
       return { ok: false, reason: 'barber-auth-failed' };
     }
     return { ok: false, reason: 'error' };
