@@ -76,6 +76,14 @@ function AvailableApp() {
           </button>
         ) : null}
         <div>© {new Date().getFullYear()} Barbearia De David. Uso restrito ao time interno.</div>
+        <a
+          className="app-footer-credit"
+          href="https://www.instagram.com/arthurzanon.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Desenvolvido por Zanon de Andrade Softwares - CNPJ: 57.971.378/0001-50
+        </a>
       </footer>
     </div>
   );

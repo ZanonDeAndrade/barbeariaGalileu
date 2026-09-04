@@ -12,7 +12,15 @@ function App() {
         <CustomerBooking />
       </main>
       <footer className="app-footer">
-        © {new Date().getFullYear()} Barbearia De David. Todos os direitos reservados.
+        <div>© {new Date().getFullYear()} Barbearia De David. Todos os direitos reservados.</div>
+        <a
+          className="app-footer-credit"
+          href="https://www.instagram.com/arthurzanon.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Desenvolvido por Zanon de Andrade Softwares - CNPJ: 57.971.378/0001-50
+        </a>
       </footer>
     </div>
   );

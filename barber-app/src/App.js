@@ -1,8 +1,10 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { format } from 'date-fns';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AddToHomescreenPrompt } from './components/AddToHomescreenPrompt';
 import { AppUnavailableScreen } from './components/AppUnavailableScreen';
+import { BarberLogin } from './components/BarberLogin';
+import { clearBarberApiKey, getBarberApiKey, subscribeToBarberAuth } from './services/barberAuth';
 import BarberDashboard from './pages/BarberDashboard';
 import BlockSchedulePage from './pages/BlockSchedulePage';
 import MonthlyMetricsPage from './pages/MonthlyMetricsPage';
@@ -26,10 +28,14 @@ function getInitialDate() {
 function AvailableApp() {
     const [activePage, setActivePage] = useState('dashboard');
     const [selectedDate, setSelectedDate] = useState(getInitialDate);
+    const [hasKey, setHasKey] = useState(() => Boolean(getBarberApiKey()));
+    // A chave e limpa pelo interceptor da API quando o servidor responde 401/403,
+    // o que devolve o painel para a tela de acesso sem recarregar a pagina.
+    useEffect(() => subscribeToBarberAuth(() => setHasKey(Boolean(getBarberApiKey()))), []);
     const handleNavigateToBlocks = () => setActivePage('block');
     const handleNavigateToMonthlyMetrics = () => setActivePage('monthly-metrics');
     const handleNavigateToDashboard = () => setActivePage('dashboard');
-    return (_jsxs("div", { className: "app-shell", children: [_jsxs("header", { className: "app-header", children: [_jsx("div", { className: "brand", children: "Barbearia De David" }), _jsx("div", { className: "page-subtitle", style: { marginBottom: 0 }, children: "Painel interno do barbeiro" })] }), _jsxs("main", { className: "app-main", children: [_jsx(AddToHomescreenPrompt, {}), activePage === 'dashboard' ? (_jsx(BarberDashboard, { selectedDate: selectedDate, onChangeDate: setSelectedDate, onNavigateToBlocks: handleNavigateToBlocks, onNavigateToMonthlyMetrics: handleNavigateToMonthlyMetrics })) : activePage === 'block' ? (_jsx(BlockSchedulePage, { selectedDate: selectedDate, onChangeDate: setSelectedDate, onBack: handleNavigateToDashboard })) : (_jsx(MonthlyMetricsPage, { defaultMonth: selectedDate.slice(0, 7), onBack: handleNavigateToDashboard }))] }), _jsxs("footer", { className: "app-footer", children: ["\u00A9 ", new Date().getFullYear(), " Barbearia De David. Uso restrito ao time interno."] })] }));
+    return (_jsxs("div", { className: "app-shell", children: [_jsxs("header", { className: "app-header", children: [_jsx("div", { className: "brand", children: "Barbearia De David" }), _jsx("div", { className: "page-subtitle", style: { marginBottom: 0 }, children: "Painel interno do barbeiro" })] }), _jsxs("main", { className: "app-main", children: [_jsx(AddToHomescreenPrompt, {}), !hasKey ? (_jsx(BarberLogin, {})) : activePage === 'dashboard' ? (_jsx(BarberDashboard, { selectedDate: selectedDate, onChangeDate: setSelectedDate, onNavigateToBlocks: handleNavigateToBlocks, onNavigateToMonthlyMetrics: handleNavigateToMonthlyMetrics })) : activePage === 'block' ? (_jsx(BlockSchedulePage, { selectedDate: selectedDate, onChangeDate: setSelectedDate, onBack: handleNavigateToDashboard })) : (_jsx(MonthlyMetricsPage, { defaultMonth: selectedDate.slice(0, 7), onBack: handleNavigateToDashboard }))] }), _jsxs("footer", { className: "app-footer", children: [hasKey ? (_jsx("button", { className: "btn btn-secondary", type: "button", onClick: clearBarberApiKey, children: "Sair" })) : null, _jsxs("div", { children: ["\u00A9 ", new Date().getFullYear(), " Barbearia De David. Uso restrito ao time interno."] }), _jsx("a", { className: "app-footer-credit", href: "https://www.instagram.com/arthurzanon.dev/", target: "_blank", rel: "noopener noreferrer", children: "Desenvolvido por Zanon de Andrade Softwares - CNPJ: 57.971.378/0001-50" })] })] }));
 }
 function App() {
     return APP_UNAVAILABLE ? _jsx(AppUnavailableScreen, {}) : _jsx(AvailableApp, {});
